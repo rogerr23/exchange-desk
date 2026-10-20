@@ -1,6 +1,6 @@
 # ExchangeDesk V1
 
-Sistema web demonstrativo para uma equipe simular conversões de moedas, cadastrar clientes fictícios e acompanhar operações de câmbio com histórico de status.
+Projeto pessoal de estudo e portfólio: um sistema web demonstrativo para uma equipe simular conversões de moedas, cadastrar clientes fictícios e acompanhar operações de câmbio com histórico de status.
 
 O projeto usa Next.js Full Stack com TypeScript. A V1 não movimenta dinheiro nem executa câmbio real. As cotações são dados reais de referência obtidos de uma API pública.
 
@@ -52,7 +52,9 @@ nvm install
 nvm use
 npx --yes npm@11.6.2 ci
 cp .env.example .env
+npm run db:generate
 npm run db:up
+npm run db:deploy
 npm run dev
 ```
 
@@ -83,13 +85,13 @@ A aplicação fica em [localhost:3000](http://localhost:3000). A página inicial
 | `npm run db:deploy` | Aplicar migrações existentes no ambiente de publicação |
 | `npm run db:studio` | Abrir o explorador do banco |
 
-O schema inicial contém apenas a configuração PostgreSQL. Os modelos, a primeira migração e a criação do administrador dependem das decisões da etapa 2. Não execute migrações ou geração do cliente antes de definir os modelos. O Vitest está configurado, mas ainda não há testes; os testes serão adicionados com os fluxos de servidor.
+O schema define funcionários, clientes, operações e auditoria. A migração inicial está preparada, mas ainda não foi aplicada por falta de um PostgreSQL disponível neste ambiente. Após configurar o banco, execute `npm run db:deploy` e `npm run db:generate`. Para novas alterações do schema, use `db:migrate`. O primeiro administrador e o login serão implementados na etapa 3. Já há testes das permissões e validações; os testes de integração acompanharão os serviços.
 
 Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve somente a configuração local disponível nesta etapa. Autenticação e provedor de cotações terão suas variáveis documentadas quando forem definidos.
 
 ### Validação da base
 
-Lint, verificação de tipos, validação do schema Prisma e compilação de produção foram verificados. A configuração do Docker Compose também foi validada; a conexão com PostgreSQL ainda não foi verificada por falta de um serviço Docker disponível neste ambiente. O Vitest foi executado com `--passWithNoTests` apenas para conferir a configuração, sem testes de regras nesta etapa.
+Lint, verificação de tipos, validação do schema Prisma e compilação de produção foram verificados. A configuração do Docker Compose também foi validada; a conexão com PostgreSQL ainda não foi verificada por falta de um serviço Docker disponível neste ambiente. O Vitest cobre as permissões da equipe e as validações de funcionários, login e clientes fictícios. A aplicação da migração e os testes de integração ainda dependem de PostgreSQL disponível.
 
 O `npm audit` identificou cinco alertas de severidade alta na cadeia de desenvolvimento `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch → braces`. O registro ainda não oferece uma versão corrigida de `braces`; a correção automática sugerida rebaixa a configuração do Next.js para outra versão principal. Os alertas permanecem registrados para revisão futura. O ESLint 9.39.5 também está fora de suporte, mas é a versão aceita pelos plugins instalados; a versão 10 apresentou conflitos de compatibilidade. Esses pontos não devem ser tratados como resolvidos.
 
@@ -106,12 +108,15 @@ O `npm audit` identificou cinco alertas de severidade alta na cadeia de desenvol
 
 Valores com duas casas decimais e taxas com oito. Cálculos com aritmética decimal e arredondamento de metade para cima; a simulação e a operação preservam a mesma taxa e o mesmo resultado. Detalhes em [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
+## Acesso e dados definidos
+
+Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. A implementação do login e do bootstrap do administrador é a próxima etapa.
+
+Administrador e operador acessam os clientes, operações e auditoria da mesma equipe; apenas o administrador cadastra e lista funcionários. Os cadastros de clientes usam dados fictícios, sem consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
+
 ## Decisões técnicas pendentes
 
-- Provedor de cotações, pares atendidos e eventual necessidade de chave de API.
-- Método de login, estratégia de sessão e criação segura do primeiro administrador.
-- Política de atualização/validade das cotações.
-- Matriz detalhada de permissões operacionais e visibilidade entre funcionários.
+- Cache e prazo de validade das cotações e da simulação antes da confirmação.
 - Conteúdo mínimo dos gráficos e ambiente de publicação.
 
 Essas pendências não alteram o escopo funcional fechado. Devem ser resolvidas antes da implementação das partes correspondentes; as propostas estão em [ARCHITECTURE.md](./docs/ARCHITECTURE.md).

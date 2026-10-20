@@ -4,7 +4,7 @@
 
 A V1 será uma aplicação Next.js Full Stack com TypeScript, PostgreSQL e Prisma. Interface e lógica de servidor ficarão no mesmo projeto, sem necessidade de um backend separado.
 
-A stack está definida. A organização de pastas, o modelo de dados e as estratégias descritas abaixo são propostas técnicas para implementar o escopo de [REQUIREMENTS.md](./REQUIREMENTS.md), sujeitas às pendências indicadas neste documento.
+A stack, a organização de pastas, o modelo inicial e as decisões de acesso estão definidos para o escopo de [REQUIREMENTS.md](./REQUIREMENTS.md). As pendências restantes estão indicadas neste documento. O projeto prioriza uma implementação compreensível para estudo e portfólio, com dados fictícios e uma única equipe.
 
 ```text
 Navegador
@@ -32,7 +32,7 @@ Auth.js fornece autenticação e sessão à aplicação.
 
 Componentes da interface não devem acessar o banco diretamente. Toda mutação passa por autenticação, autorização e validação no servidor.
 
-## 3. Organização proposta
+## 3. Organização definida
 
 Usar o App Router do Next.js, com componentes de servidor para leitura quando adequado e componentes de cliente para interações e gráficos.
 
@@ -60,16 +60,36 @@ prisma/
 tests/
 ```
 
+A organização principal usa as responsabilidades abaixo:
+
+| Pasta | Responsabilidade |
+| --- | --- |
+| `src/app` | Páginas, layouts, entradas HTTP e Server Actions associadas às rotas |
+| `src/components` | Componentes da interface, de servidor ou de cliente conforme a necessidade |
+| `src/server/auth` | Sessão e autorização |
+| `src/server/db` | Instância e configuração de acesso ao banco com Prisma |
+| `src/server/services` | Coordenação dos fluxos, persistência e transações |
+| `src/server/quotes` | Adaptador e comunicação com o provedor de cotações |
+| `src/schemas` | Schemas Zod para validar entradas e dados compartilháveis, sem segredos |
+| `src/domain` | Regras e tipos do domínio, independentes de Next.js, banco e chamadas externas |
+| `prisma` | Schema e migrações do banco |
+| `docs` | Requisitos, arquitetura e plano de implementação |
+
+Os módulos de `src/server` devem importar `server-only` para impedir seu uso em componentes de cliente. Componentes de servidor podem chamar serviços para leituras autorizadas; componentes de cliente usam as entradas de servidor. Os serviços continuam responsáveis por aplicar as verificações de acesso.
+
+As pastas principais e as subdivisões de `src/server` já foram criadas. Arquivos `.gitkeep` preservam as pastas ainda vazias no versionamento e podem ser removidos quando receberem código. As rotas funcionais e `tests/` mostrados na árvore serão criados conforme a implementação de cada fluxo.
+
 Grupos de rotas organizam arquivos; não substituem controles de acesso. Server Actions e/ou Route Handlers serão entradas finas que chamam os mesmos serviços. A divisão final será definida na implementação, sem duplicar regras em cada entrada.
 
-## 4. Modelo de dados proposto
+## 4. Modelo de dados definido
 
 ### Funcionário (`User`)
 
-- `id`, `name`, `email`, `role`, `createdAt`.
+- `id`, `name`, `email`, `passwordHash`, `role`, `createdAt`.
 - Perfil: `ADMIN` ou `OPERATOR`.
 - E-mail único para identificação do funcionário.
-- Campos de credenciais e tabelas auxiliares dependem da configuração escolhida para Auth.js.
+- `passwordHash` contém somente o hash Argon2id; nunca retornar esse campo nas respostas.
+- Sessão JWT: não são necessárias tabelas `Session`, `Account` ou `VerificationToken` para Credentials nesta V1.
 
 Não existe entidade de cliente autenticável. Não disponibilizar rota pública de criação de funcionários.
 
@@ -77,17 +97,19 @@ Não existe entidade de cliente autenticável. Não disponibilizar rota pública
 
 - `id`, `name`, `fictionalCpf`, `email`, `phone`, `createdAt`.
 - CPF e telefone armazenados como texto para preservar zeros e formatação.
-- Restrições de unicidade e normalização dos dados do cliente ainda pendentes.
+- CPF fictício único, com 11 dígitos, sem validar dígitos verificadores; remover máscara e preservar zeros.
+- Nome com 2 a 100 caracteres; e-mail válido com até 254 caracteres em minúsculas; telefone com DDD e 10 ou 11 dígitos, sem código de país.
+- E-mail e telefone do cliente não são únicos. Remover espaços nas extremidades dos textos e máscaras do CPF/telefone no schema Zod.
 
 ### Operação (`ExchangeOperation`)
 
 - `id`, `customerId`, `createdById`, `createdAt`, `updatedAt`.
 - `sourceCurrency`, `targetCurrency`: `BRL`, `USD` ou `EUR`.
 - `sourceAmount`, `targetAmount`, `exchangeRate`: decimais.
-- `quoteProvider`, `quoteTimestamp`, `quoteTimestampKind`, `quoteFetchedAt`.
+- `quoteProvider`, `quoteReferenceDate`, `quoteTimestamp`, `quoteTimestampKind`, `quoteFetchedAt`.
 - `status`: `PENDING`, `UNDER_REVIEW`, `COMPLETED` ou `CANCELED`.
 
-`quoteTimestampKind` diferencia horário informado pelo provedor de horário de consulta usado como referência quando a API não informa o primeiro. Os nomes finais podem mudar, preservando essa distinção na interface.
+`quoteTimestampKind` usa `PROVIDER` quando há um instante informado pelo provedor e `FETCHED_AT` quando a referência temporal é a consulta. `quoteReferenceDate` é uma data opcional separada, armazenada como PostgreSQL `date`, para provedores que publicam observações diárias. Frankfurter/ECB retorna data sem hora: preservar essa data, usar o instante de consulta em `quoteTimestamp` com tipo `FETCHED_AT` e exibir os dois rótulos separadamente, sem inventar o instante da cotação.
 
 Os valores e a referência de cotação formam um retrato da simulação confirmada. Não recalcular operações já registradas com a cotação atual. A precisão e o arredondamento seguem a política definida abaixo.
 
@@ -111,7 +133,7 @@ Os valores e a referência de cotação formam um retrato da simulação confirm
 
 Relacionamentos: cliente → operações; funcionário → operações criadas e eventos realizados; operação → eventos. Usar chaves estrangeiras para preservar esses vínculos. Não criar exclusão em cascata que apague o histórico por acidente; exclusão de operações não faz parte da V1.
 
-Uma tabela separada de simulações não é necessária para o escopo atual. Dados de sessão e contas do Auth.js serão modelados após a escolha da estratégia de autenticação.
+Uma tabela separada de simulações não é necessária para o escopo atual. IDs usam CUID gerado pelo Prisma. Instantes usam `timestamptz(3)`; a data diária da cotação usa `date`. As chaves estrangeiras restringem exclusões dos registros relacionados. A migração inicial também verifica valores positivos, moedas diferentes e a forma dos eventos de auditoria; transições e gravação atômica continuam responsabilidade dos serviços.
 
 ## 5. Fluxos de servidor
 
@@ -149,7 +171,9 @@ Fluxo único: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Estados finai
 
 O adaptador deve isolar os nomes e o formato do provedor. Seu retorno interno deve identificar moedas, taxa decimal, fonte, horário da cotação quando disponível e horário da consulta.
 
-O provedor deve permitir atender às conversões entre BRL, USD e EUR. A eventual inversão ou composição de taxas precisa ser definida e testada; não deve ser assumida silenciosamente.
+O provedor escolhido é [Frankfurter v2](https://frankfurter.dev/), pela rota pública `https://api.frankfurter.dev/v2/providers/ecb/rates?base=BRL&quotes=USD,EUR`. Não exige chave e publica taxas diárias. O adaptador solicitará o sentido origem → destino diretamente, sem inverter ou compor taxas na aplicação.
+
+Na avaliação do provedor, as três bases BRL, USD e EUR retornaram os dois destinos esperados, cobrindo os seis pares. Cada item retornou `date`, `base`, `quote` e `rate`. Isso orientou o campo `quoteReferenceDate`; o teste manual da API não substitui os testes de normalização e falhas que acompanharão o adaptador. A interface deve atribuir a fonte como Frankfurter / ECB e identificar os valores como referência diária.
 
 Definir tempo limite para chamadas e tratar falhas, respostas inválidas e pares indisponíveis. Na ausência de uma referência válida conforme a política definida, bloquear a confirmação e explicar a indisponibilidade. Não usar taxa fictícia como alternativa em uso normal. Testes podem usar respostas simuladas, claramente separadas da integração real.
 
@@ -159,11 +183,18 @@ Cache, duração da referência e limites de consulta são decisões pendentes, 
 
 Auth.js cuidará da autenticação e sessão; a aplicação continuará responsável por autorizar cada ação. A verificação deve ocorrer em toda entrada de servidor que leia ou altere dados protegidos, incluindo o acesso a um recurso específico.
 
-Está fechado que apenas administradores cadastram funcionários. A matriz de acesso operacional ainda precisa confirmar quem pode visualizar operações de outros funcionários, alterar status e consultar auditoria.
+### Decisões para a V1
 
-O método de login não está escolhido. Se forem usadas credenciais com senha, armazenar somente hash produzido por biblioteca apropriada e definir a entrega do acesso inicial. Não assumir que Auth.js fornece, por si só, cadastro e armazenamento de senhas.
+- Uma única equipe: os dois perfis acessam todos os clientes, operações e eventos de auditoria. Ambos podem simular, registrar operações e alterar status dentro do fluxo permitido. Apenas `ADMIN` cadastra e lista funcionários.
+- Login por e-mail e senha usando [Credentials do Auth.js](https://authjs.dev/getting-started/authentication/credentials). A aplicação consulta seu próprio `User` pelo e-mail normalizado e verifica o hash; Auth.js não cria usuários automaticamente.
+- Hash Argon2id com biblioteca mantida. Senhas de 12 a 128 caracteres; não remover espaços nem exigir combinações de símbolos. Nome com 2 a 100 caracteres; e-mail normalizado e único, com até 254 caracteres.
+- Sessão JWT em cookie gerenciado pelo Auth.js, com `maxAge` de oito horas e renovação padrão da biblioteca, sem um mecanismo próprio de sessões. O perfil é obtido de dados confiáveis no servidor. Logout remove o cookie da sessão no navegador; revogação central de tokens e gestão de dispositivos ficam fora da V1.
+- Sem adaptador de persistência do Auth.js para essa configuração: o próprio serviço lê e cadastra usuários via Prisma. Não criar tabelas OAuth ou sessões persistidas sem necessidade.
+- Primeiro administrador por comando local de bootstrap, recebendo nome, e-mail e senha pelo ambiente. Exigir os campos explicitamente, validar, produzir o hash, recusar se já houver administrador e nunca atualizar um usuário existente nem imprimir a senha/hash. A rotina será implementada na etapa 3.
+- Funcionários posteriores são cadastrados pelo administrador autenticado, que define e entrega manualmente a senha para uso de estudo. Sem cadastro público, login social, MFA, fluxo de convite ou recuperação por e-mail.
+- Dados de autorização enviados pelo cliente nunca substituem a sessão. A função de domínio `can` expressa a matriz, mas não autentica ninguém: as entradas e serviços da etapa 3 devem obter a sessão e aplicar a política no servidor.
 
-O primeiro administrador deverá ser criado por uma rotina controlada, sem senha fixa versionada nem cadastro público. Estratégia de sessão, expiração e variáveis de ambiente serão documentadas após a decisão de autenticação.
+A matriz completa está em REQUIREMENTS.md. Essas decisões estão registradas e o schema está preparado; login, cookies, verificação de senha e bootstrap ainda serão implementados na etapa 3.
 
 ## 8. Interface e testes
 
@@ -185,10 +216,7 @@ A verificação manual deve cobrir login, cadastro por perfil, mensagens de erro
 | Tema | Decisão a registrar |
 | --- | --- |
 | Ambiente | Base definida: Node.js 22.14.0, npm 11.6.2 e PostgreSQL 17; versões e scripts em `package.json` |
-| Auth.js | Método de login, estratégia de sessão e criação do administrador inicial |
-| Autorização | Matriz de ações e visibilidade dos dados por perfil |
-| Clientes | Normalização, formato e unicidade dos campos |
-| API de cotações | Provedor, pares, chave, normalização, limites, cache e validade |
+| API de cotações | Normalização, timeout, limites, cache e validade; Frankfurter/ECB e os pares já definidos |
 | Simulação | Como preservar e verificar a referência até a confirmação |
 | Entradas de servidor | Uso de Server Actions e Route Handlers por fluxo |
 | Gráficos | Conteúdo mínimo com Recharts |

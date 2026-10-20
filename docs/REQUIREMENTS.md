@@ -4,6 +4,8 @@
 
 Permitir que uma equipe cadastre clientes fictícios, simule conversões e acompanhe operações demonstrativas com auditoria. O sistema não executa transações financeiras reais.
 
+Este é um projeto pessoal de estudo e portfólio, voltado a demonstrar organização, regras de negócio e testes essenciais. Os cadastros devem usar dados fictícios; não há objetivo de operar um serviço financeiro comercial.
+
 Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como proposta ou pendência não devem ser tratados como decisões já aprovadas.
 
 ## 2. Perfis e acesso
@@ -14,7 +16,18 @@ Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como propo
 | Operador | Acessar o sistema para trabalhar nos fluxos operacionais |
 | Cliente fictício | Ser vinculado às operações; não possui login |
 
-**Proposta a confirmar:** administrador e operador podem cadastrar e consultar clientes, simular conversões, criar operações e alterar seus status. Apenas o administrador pode cadastrar funcionários. A visibilidade das operações de outros funcionários e da auditoria ainda precisa ser definida.
+A V1 representa uma única equipe, sem separação por empresa ou por carteira de clientes.
+
+| Ação | Administrador | Operador |
+| --- | --- | --- |
+| Cadastrar e listar funcionários | Sim | Não |
+| Cadastrar e consultar clientes fictícios | Sim | Sim |
+| Simular conversões | Sim | Sim |
+| Criar e consultar operações de toda a equipe | Sim | Sim |
+| Alterar status de qualquer operação, respeitando o fluxo | Sim | Sim |
+| Consultar auditoria das operações da equipe | Sim | Sim |
+
+Nenhuma dessas ações é permitida sem sessão. O perfil usado para autorizar vem da sessão verificada no servidor, nunca de um campo enviado pelo navegador. Listar funcionários retorna apenas identificador, nome, e-mail e perfil; nunca hash ou senha.
 
 ## 3. Requisitos funcionais
 
@@ -27,14 +40,17 @@ Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como propo
 
 **Aceite:** uma pessoa sem sessão não acessa dados internos; encerrar a sessão remove o acesso autenticado; ações restritas são verificadas no servidor.
 
-O método de login e a estratégia de sessão estão pendentes.
+O login usa e-mail e senha pelo provider Credentials do Auth.js. A sessão usa JWT gerenciado pelo Auth.js, com `maxAge` de oito horas e renovação conforme o comportamento padrão da biblioteca. Senhas são armazenadas somente como hash Argon2id. Não há login social, MFA ou recuperação por e-mail na V1.
 
 ### RF02 — Cadastro de funcionários
 
 - Permitir que somente o administrador cadastre funcionários.
 - Associar cada funcionário a um perfil: administrador ou operador.
-- Proposta de dados mínimos: nome, e-mail e perfil; credenciais dependem do método de login escolhido.
-- Definir uma rotina segura para criar o primeiro administrador.
+- Dados obrigatórios: nome, e-mail, senha e perfil; o perfil padrão é operador.
+- Normalizar o e-mail para minúsculas, remover espaços nas extremidades e exigir unicidade.
+- Aceitar senhas entre 12 e 128 caracteres, sem regras de composição e sem remover espaços da senha.
+- Criar o primeiro administrador por um comando local controlado, com nome, e-mail e senha fornecidos pelo ambiente, sem credenciais fixas. O comando deve recusar execução se já existir um administrador, sem sobrescrever usuários.
+- O administrador define a senha ao cadastrar um funcionário e a entrega manualmente para uso no projeto pessoal; não há envio de e-mail nem convite público.
 
 **Aceite:** o administrador consegue cadastrar um funcionário válido; uma tentativa de cadastro feita por operador é recusada no servidor, mesmo por acesso direto.
 
@@ -49,7 +65,7 @@ Edição, desativação, recuperação de acesso e gestão de sessões não fora
 
 **Aceite:** dados obrigatórios ausentes ou inválidos são recusados; um cliente cadastrado pode ser consultado e vinculado a uma operação.
 
-Não há integração de consulta de CPF. Formato, unicidade e eventual validação de dígitos do CPF fictício precisam ser definidos sem exigir documentos reais. Edição e exclusão de clientes não estão fechadas.
+Não há consulta de CPF nem validação dos seus dígitos verificadores. O CPF fictício é um identificador de 11 dígitos único no cadastro: aceitar máscara, removê-la antes de salvar e preservar zeros à esquerda. Nome: 2 a 100 caracteres após remover espaços nas extremidades. E-mail: formato válido, até 254 caracteres, em minúsculas; não é único entre clientes. Telefone fictício: 10 ou 11 dígitos com DDD, sem código de país; aceitar máscara e salvar apenas dígitos, sem unicidade. Os campos são obrigatórios. Usar contatos de exemplo nos dados de demonstração. Edição e exclusão de clientes não estão fechadas.
 
 ### RF04 — Cotações
 
@@ -60,7 +76,7 @@ Não há integração de consulta de CPF. Formato, unicidade e eventual validaç
 
 **Aceite:** uma resposta válida da API pode alimentar a simulação; falhas geram uma mensagem compreensível; o usuário consegue identificar a referência utilizada.
 
-O provedor, a atualização e a validade das cotações estão pendentes. Se a API não informar o horário da cotação, mostrar o horário de consulta com esse rótulo, sem apresentá-lo como horário de mercado.
+O provedor escolhido é Frankfurter v2, consultando a fonte ECB para os seis pares direcionais entre BRL, USD e EUR. As taxas são referências diárias, sem atualização em tempo real. Cache e validade para confirmar uma simulação serão definidos na etapa 4. A data de referência diária deve aparecer separada do horário de consulta; uma data sem hora não deve virar um horário de mercado inventado. Se a API não informar o horário da cotação, mostrar o horário de consulta com esse rótulo, sem apresentá-lo como horário de mercado.
 
 ### RF05 — Simulações
 
@@ -123,11 +139,7 @@ Recharts está definido na stack. **Proposta a confirmar:** um resumo de quantid
 
 | Decisão | O que falta definir |
 | --- | --- |
-| Autenticação | Método de login, estratégia de sessão e criação do administrador inicial |
-| Permissões | Ações operacionais por perfil, visibilidade entre funcionários e acesso à auditoria |
-| Funcionários | Dados finais do cadastro e forma de entrega do acesso |
-| Clientes | Formato e unicidade dos campos, especialmente CPF fictício |
-| Cotações | Provedor, pares, normalização, prazo de validade, cache e falhas |
+| Cotações | Normalização do adaptador, prazo de validade, cache, timeout e falhas; provedor e pares definidos |
 | Interface | Conteúdo mínimo do resumo com Recharts |
 | Ambiente | Hospedagem e variáveis das integrações; base local e scripts definidos no README |
 

@@ -6,9 +6,11 @@ A implementação começa pela API e pelos serviços no próprio Next.js. As tel
 
 ## Andamento
 
-- Etapa 1: base criada com Next.js, TypeScript, Tailwind CSS, Prisma e Vitest; versões fixadas e comandos de execução documentados no README. PostgreSQL local configurado via Docker Compose; a verificação da conexão depende de um serviço Docker disponível. Ainda não há modelos, migrações ou testes de regras.
-- Verificações da base: lint, tipos, schema Prisma, Docker Compose e build com Webpack aprovados; Vitest executado sem casos de teste. Alertas de dependências do lint e limitação do PostgreSQL registrados no README.
-- Etapas 2 a 7: não iniciadas.
+- Etapa 1: base criada com Next.js, TypeScript, Tailwind CSS, Prisma e Vitest; versões fixadas e comandos de execução documentados no README. PostgreSQL local configurado via Docker Compose, ainda sem conexão verificada por falta de serviço Docker disponível; modelos, migração e primeiros testes foram preparados na etapa 2.
+- Verificações da base: lint, tipos, schema Prisma, Docker Compose e build com Webpack aprovados; Vitest inicialmente configurado sem casos; testes de permissões e validação adicionados na etapa 2. Alertas de dependências do lint e limitação do PostgreSQL registrados no README.
+- Organização definida e criada: `src/app`, `src/components`, `src/server` (auth, db, services e quotes), `src/schemas` e `src/domain`. As responsabilidades estão descritas na arquitetura.
+- Etapa 2: decisões de login, sessão, permissões e dados fictícios registradas. Schema Prisma com quatro entidades, validações Zod e matriz de permissões preparados. Frankfurter/ECB avaliado nos seis pares; data diária preservada no modelo. Migração inicial gerada sem conexão e ainda não aplicada no PostgreSQL.
+- Etapas 3 a 7: não iniciadas. A implementação do login, dos serviços protegidos e do bootstrap do administrador vem na etapa 3.
 
 ## Etapas
 
@@ -20,4 +22,4 @@ A implementação começa pela API e pelos serviços no próprio Next.js. As tel
 6. **Criar a interface e validar a V1.** Confirmar o conteúdo do resumo com Recharts e implementar as telas responsivas em português, incluindo estados vazios, carregamento e erros. Reexecutar os testes essenciais criados nas etapas da API, sem exigir cobertura total nem testes de detalhes visuais ou de bibliotecas; verificar transações e concorrência em banco de teste isolado; conferir manualmente o fluxo completo nos dois perfis, em computador e celular.
 7. **Preparar a publicação.** Definir hospedagem e PostgreSQL, configurar variáveis e migrações, documentar a execução local e verificar os critérios de aceite de cada requisito antes de considerar a V1 concluída.
 
-A estrutura de código proposta está em [ARCHITECTURE.md](./ARCHITECTURE.md). Os critérios para verificar cada entrega estão em [REQUIREMENTS.md](./REQUIREMENTS.md).
+A estrutura de código definida está em [ARCHITECTURE.md](./ARCHITECTURE.md). Os critérios para verificar cada entrega estão em [REQUIREMENTS.md](./REQUIREMENTS.md).

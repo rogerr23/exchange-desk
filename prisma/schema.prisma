@@ -7,4 +7,93 @@ datasource db {
   provider = "postgresql"
 }
 
-// Modelos e migração inicial serão criados após as decisões da etapa 2.
+enum Role {
+  ADMIN
+  OPERATOR
+}
+
+enum Currency {
+  BRL
+  USD
+  EUR
+}
+
+enum OperationStatus {
+  PENDING
+  UNDER_REVIEW
+  COMPLETED
+  CANCELED
+}
+
+enum QuoteTimestampKind {
+  PROVIDER
+  FETCHED_AT
+}
+
+enum AuditAction {
+  CREATED
+  STATUS_CHANGED
+}
+
+model User {
+  id           String                @id @default(cuid())
+  name         String                @db.VarChar(100)
+  email        String                @unique @db.VarChar(254)
+  passwordHash String                @db.VarChar(255)
+  role         Role                  @default(OPERATOR)
+  createdAt    DateTime              @default(now()) @db.Timestamptz(3)
+  operations   ExchangeOperation[]
+  auditEvents  OperationAuditEvent[]
+}
+
+model Customer {
+  id           String              @id @default(cuid())
+  name         String              @db.VarChar(100)
+  fictionalCpf String              @unique @db.VarChar(11)
+  email        String              @db.VarChar(254)
+  phone        String              @db.VarChar(11)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  operations   ExchangeOperation[]
+}
+
+model ExchangeOperation {
+  id                 String                @id @default(cuid())
+  customerId         String
+  createdById        String
+  sourceCurrency     Currency
+  targetCurrency     Currency
+  sourceAmount       Decimal               @db.Decimal(18, 2)
+  targetAmount       Decimal               @db.Decimal(18, 2)
+  exchangeRate       Decimal               @db.Decimal(18, 8)
+  quoteProvider      String                @db.VarChar(100)
+  quoteReferenceDate DateTime?             @db.Date
+  quoteTimestamp     DateTime              @db.Timestamptz(3)
+  quoteTimestampKind QuoteTimestampKind
+  quoteFetchedAt     DateTime              @db.Timestamptz(3)
+  status             OperationStatus       @default(PENDING)
+  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
+  customer           Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy          User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  auditEvents        OperationAuditEvent[]
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@index([createdById])
+}
+
+model OperationAuditEvent {
+  id             String            @id @default(cuid())
+  operationId    String
+  actorId        String
+  occurredAt     DateTime          @default(now()) @db.Timestamptz(3)
+  action         AuditAction
+  previousStatus OperationStatus?
+  newStatus      OperationStatus
+  operation      ExchangeOperation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  actor          User              @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([operationId, occurredAt, id])
+  @@index([actorId])
+}
