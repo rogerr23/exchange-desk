@@ -43,7 +43,7 @@ O registro da operação representa um fluxo interno demonstrativo; o status Con
 
 ## Execução local
 
-A base da aplicação está configurada. Autenticação, cadastros, cotações e operações serão implementados nas próximas etapas.
+Login e gerenciamento de funcionários já têm telas próprias. Autenticação e cadastros de funcionários/clientes também estão disponíveis pela API. Cotações, operações e as demais telas serão implementadas nas próximas etapas.
 
 Ambiente de referência: **Node.js 22.14.0** (ver `.nvmrc`), **npm 11.6.2** e **PostgreSQL 17**. As versões das dependências estão fixadas em `package.json` e `package-lock.json`. Prisma 7 usa configuração em `prisma.config.ts` e o adaptador PostgreSQL; consulte a [documentação oficial](https://www.prisma.io/docs/orm/v7).
 
@@ -51,7 +51,8 @@ Ambiente de referência: **Node.js 22.14.0** (ver `.nvmrc`), **npm 11.6.2** e **
 nvm install
 nvm use
 npx --yes npm@11.6.2 ci
-cp .env.example .env
+cp -n .env.example .env
+# Preencha AUTH_SECRET no .env conforme as instruções abaixo.
 npm run db:generate
 npm run db:up
 npm run db:deploy
@@ -64,7 +65,15 @@ O comando `db:up` exige Docker Compose e um serviço Docker em execução. Tamb�
 
 Os scripts de desenvolvimento e compilação usam Webpack, validado neste ambiente. O Turbopack encontrou uma restrição de abertura de portas durante o processamento do CSS.
 
-A aplicação fica em [localhost:3000](http://localhost:3000). A página inicial é temporária; ainda não há dados ou funções internas disponíveis.
+A aplicação fica em [localhost:3000](http://localhost:3000). Antes de entrar, preencha `AUTH_SECRET` com um valor gerado por:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
+```
+
+Mantenha `AUTH_URL=http://localhost:3000` no desenvolvimento. Para criar seu acesso, preencha temporariamente `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` no `.env` e execute `npm run admin:create`. Escolha uma senha de 12 a 128 caracteres e remova essas variáveis após criar o administrador. Não existe senha padrão. O comando recusa execução se já houver administrador.
+
+Acesse `/login` para entrar. Após o login, `/inicio` apresenta o espaço da equipe; administradores podem abrir `/funcionarios` para listar acessos e `/funcionarios/novo` para cadastrar funcionários. O botão **Sair** encerra a sessão. O cadastro não é público: a página e a API verificam a permissão no servidor. Os endpoints e exemplos estão em [API.md](./docs/API.md).
 
 ### Comandos disponíveis
 
@@ -75,23 +84,37 @@ A aplicação fica em [localhost:3000](http://localhost:3000). A página inicial
 | `npm start` | Executar a compilação de produção |
 | `npm run lint` | Análise estática com ESLint |
 | `npm run typecheck` | Verificar tipos TypeScript |
-| `npm test` | Executar os testes essenciais quando implementados |
+| `npm test` | Executar testes unitários de regras, validações e guardas |
+| `npm run test:integration` | Compilar e verificar serviços e HTTP real no banco de testes |
 | `npm run test:watch` | Testes em modo de acompanhamento |
 | `npm run db:up` | Iniciar PostgreSQL local e aguardar disponibilidade |
 | `npm run db:stop` | Parar o banco local, preservando o volume |
 | `npm run db:validate` | Validar o schema Prisma |
-| `npm run db:generate` | Gerar o cliente após a definição dos modelos |
+| `npm run db:generate` | Gerar o cliente Prisma; também executado no postinstall |
+| `npm run admin:create` | Criar o primeiro administrador com dados do ambiente |
+| `npm run db:test:deploy` | Aplicar migrações exclusivamente no TEST_DATABASE_URL |
 | `npm run db:migrate -- --name init` | Criar e aplicar uma migração no desenvolvimento |
 | `npm run db:deploy` | Aplicar migrações existentes no ambiente de publicação |
 | `npm run db:studio` | Abrir o explorador do banco |
 
-O schema define funcionários, clientes, operações e auditoria. A migração inicial está preparada, mas ainda não foi aplicada por falta de um PostgreSQL disponível neste ambiente. Após configurar o banco, execute `npm run db:deploy` e `npm run db:generate`. Para novas alterações do schema, use `db:migrate`. O primeiro administrador e o login serão implementados na etapa 3. Já há testes das permissões e validações; os testes de integração acompanharão os serviços.
+O schema define funcionários, clientes, operações e auditoria. A migração inicial foi aplicada e validada no PostgreSQL local e no banco de testes. Em um novo ambiente, use `db:deploy` para aplicar as migrações existentes. Para novas alterações do schema, use `db:migrate`. O bootstrap é exclusivo do comando local; os demais funcionários são cadastrados por administrador autenticado.
 
-Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve somente a configuração local disponível nesta etapa. Autenticação e provedor de cotações terão suas variáveis documentadas quando forem definidos.
+Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve as variáveis locais, de autenticação, bootstrap e testes. As opções de cotações serão definidas na etapa 4. Auth.js está fixado em `next-auth@5.0.0-beta.32`, versão beta indicada pela documentação oficial para a integração v5; Argon2 usa `@node-rs/argon2`.
 
 ### Validação da base
 
-Lint, verificação de tipos, validação do schema Prisma e compilação de produção foram verificados. A configuração do Docker Compose também foi validada; a conexão com PostgreSQL ainda não foi verificada por falta de um serviço Docker disponível neste ambiente. O Vitest cobre as permissões da equipe e as validações de funcionários, login e clientes fictícios. A aplicação da migração e os testes de integração ainda dependem de PostgreSQL disponível.
+Lint, tipos, schema Prisma e build foram verificados. Os testes incluem autorização no servidor, validações, bootstrap repetido e concorrente, hash Argon2id, cadastros e o fluxo HTTP real de login, cookies, permissões e logout.
+
+Para executar a integração, crie um banco separado com nome terminado em `_test` e configure `TEST_DATABASE_URL` no `.env`. Os testes limpam as tabelas desse banco, por isso ele deve ser exclusivo e descartável. Usando o PostgreSQL local do Compose:
+
+```sh
+docker compose exec db sh -c 'createdb -U "$POSTGRES_USER" exchangedesk_stage3_test'
+# Configure TEST_DATABASE_URL no .env conforme o exemplo.
+npm run db:test:deploy
+npm run test:integration
+```
+
+O comando `db:test:deploy` e os testes recusam URLs cujo nome de banco não termine em `_test`. A integração compila a aplicação, inicia um servidor em uma porta local temporária e o encerra ao concluir. Os testes da camada de serviço simulam apenas a sessão; o teste HTTP usa Auth.js e cookies reais. Nenhum administrador de teste é criado no banco da aplicação.
 
 O `npm audit` identificou cinco alertas de severidade alta na cadeia de desenvolvimento `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch → braces`. O registro ainda não oferece uma versão corrigida de `braces`; a correção automática sugerida rebaixa a configuração do Next.js para outra versão principal. Os alertas permanecem registrados para revisão futura. O ESLint 9.39.5 também está fora de suporte, mas é a versão aceita pelos plugins instalados; a versão 10 apresentou conflitos de compatibilidade. Esses pontos não devem ser tratados como resolvidos.
 
@@ -110,7 +133,7 @@ Valores com duas casas decimais e taxas com oito. Cálculos com aritmética deci
 
 ## Acesso e dados definidos
 
-Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. A implementação do login e do bootstrap do administrador é a próxima etapa.
+Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. Login, logout, bootstrap e serviços de cadastros já estão implementados.
 
 Administrador e operador acessam os clientes, operações e auditoria da mesma equipe; apenas o administrador cadastra e lista funcionários. Os cadastros de clientes usam dados fictícios, sem consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
 
@@ -126,3 +149,4 @@ Essas pendências não alteram o escopo funcional fechado. Devem ser resolvidas 
 - [REQUIREMENTS.md](./docs/REQUIREMENTS.md): requisitos e critérios de aceite.
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md): organização técnica, dados e decisões pendentes.
 - [IMPLEMENTATION_PLAN.md](./docs/IMPLEMENTATION_PLAN.md): sequência de implementação da V1.
+- [API.md](./docs/API.md): preparação do acesso, endpoints e exemplos de uso.

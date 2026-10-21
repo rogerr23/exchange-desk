@@ -181,20 +181,20 @@ Cache, duração da referência e limites de consulta são decisões pendentes, 
 
 ## 7. Autenticação e autorização
 
-Auth.js cuidará da autenticação e sessão; a aplicação continuará responsável por autorizar cada ação. A verificação deve ocorrer em toda entrada de servidor que leia ou altere dados protegidos, incluindo o acesso a um recurso específico.
+Auth.js cuida da autenticação e sessão; a aplicação continuará responsável por autorizar cada ação. A verificação deve ocorrer em toda entrada de servidor que leia ou altere dados protegidos, incluindo o acesso a um recurso específico.
 
 ### Decisões para a V1
 
 - Uma única equipe: os dois perfis acessam todos os clientes, operações e eventos de auditoria. Ambos podem simular, registrar operações e alterar status dentro do fluxo permitido. Apenas `ADMIN` cadastra e lista funcionários.
 - Login por e-mail e senha usando [Credentials do Auth.js](https://authjs.dev/getting-started/authentication/credentials). A aplicação consulta seu próprio `User` pelo e-mail normalizado e verifica o hash; Auth.js não cria usuários automaticamente.
-- Hash Argon2id com biblioteca mantida. Senhas de 12 a 128 caracteres; não remover espaços nem exigir combinações de símbolos. Nome com 2 a 100 caracteres; e-mail normalizado e único, com até 254 caracteres.
+- Hash Argon2id com `@node-rs/argon2`, memória de 19 MiB, duas iterações e paralelismo 1. Senhas de 12 a 128 caracteres; não remover espaços nem exigir combinações de símbolos. Nome com 2 a 100 caracteres; e-mail normalizado e único, com até 254 caracteres.
 - Sessão JWT em cookie gerenciado pelo Auth.js, com `maxAge` de oito horas e renovação padrão da biblioteca, sem um mecanismo próprio de sessões. O perfil é obtido de dados confiáveis no servidor. Logout remove o cookie da sessão no navegador; revogação central de tokens e gestão de dispositivos ficam fora da V1.
 - Sem adaptador de persistência do Auth.js para essa configuração: o próprio serviço lê e cadastra usuários via Prisma. Não criar tabelas OAuth ou sessões persistidas sem necessidade.
-- Primeiro administrador por comando local de bootstrap, recebendo nome, e-mail e senha pelo ambiente. Exigir os campos explicitamente, validar, produzir o hash, recusar se já houver administrador e nunca atualizar um usuário existente nem imprimir a senha/hash. A rotina será implementada na etapa 3.
+- Primeiro administrador por comando local de bootstrap, recebendo nome, e-mail e senha pelo ambiente. Exigir os campos explicitamente, validar, produzir o hash, recusar se já houver administrador e nunca atualizar um usuário existente nem imprimir a senha/hash. A rotina está em `src/server/auth/bootstrap.ts` e é executada por `npm run admin:create`; uma trava transacional no PostgreSQL serializa execuções concorrentes.
 - Funcionários posteriores são cadastrados pelo administrador autenticado, que define e entrega manualmente a senha para uso de estudo. Sem cadastro público, login social, MFA, fluxo de convite ou recuperação por e-mail.
-- Dados de autorização enviados pelo cliente nunca substituem a sessão. A função de domínio `can` expressa a matriz, mas não autentica ninguém: as entradas e serviços da etapa 3 devem obter a sessão e aplicar a política no servidor.
+- Dados de autorização enviados pelo cliente nunca substituem a sessão. A função de domínio `can` expressa a matriz, mas não autentica ninguém: as entradas chamam serviços que obtêm a sessão e aplicam a política no servidor. O guarda também consulta o usuário no banco para obter seu perfil atual.
 
-A matriz completa está em REQUIREMENTS.md. Essas decisões estão registradas e o schema está preparado; login, cookies, verificação de senha e bootstrap ainda serão implementados na etapa 3.
+A matriz completa está em [REQUIREMENTS.md](./REQUIREMENTS.md). Login, cookies, verificação de senha, bootstrap e cadastros estão implementados. A configuração usa `next-auth@5.0.0-beta.32`, conforme a [instalação oficial do Auth.js v5](https://authjs.dev/getting-started/installation). Os endpoints são Route Handlers finos em `src/app/api`. As telas de login e saída usam Server Actions do Auth.js; o formulário visual de funcionários usa a API existente. As páginas internas também verificam o acesso no servidor, além da autorização dos serviços. O uso da API está em [API.md](./API.md).
 
 ## 8. Interface e testes
 
@@ -209,7 +209,7 @@ Usar Vitest apenas para os comportamentos essenciais abaixo, ao implementar cada
 - Normalização da cotação e tratamento de falhas do provedor.
 - Integridade da transação e tratamento de concorrência, com banco de teste isolado.
 
-A verificação manual deve cobrir login, cadastro por perfil, mensagens de erro e o fluxo completo em tela de computador e celular.
+Já existem testes unitários das regras e guardas, testes de integração dos cadastros com PostgreSQL e teste HTTP real de autenticação e permissões. A integração usa um banco separado com nome terminado em `_test`. A verificação manual das telas de trabalho em computador e celular acompanhará a etapa 6; o fluxo de câmbio completo continua pendente.
 
 ## 9. Decisões técnicas pendentes
 

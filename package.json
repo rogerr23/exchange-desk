@@ -21,13 +21,20 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:up": "docker compose up -d --wait db",
-    "db:stop": "docker compose stop db"
+    "db:stop": "docker compose stop db",
+    "postinstall": "prisma generate",
+    "admin:create": "node --conditions=react-server --import tsx scripts/create-admin.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "pretest:integration": "npm run build",
+    "db:test:deploy": "prisma migrate deploy --config prisma.test.config.ts"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.2.2",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "dotenv": "18.0.8",
     "next": "16.4.2",
+    "next-auth": "5.0.0-beta.32",
     "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -44,6 +51,7 @@
     "eslint-config-next": "16.4.2",
     "prisma": "7.10.1",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "7.3.7",
     "vitest": "4.1.12"

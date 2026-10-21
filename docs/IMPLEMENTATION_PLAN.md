@@ -6,11 +6,13 @@ A implementação começa pela API e pelos serviços no próprio Next.js. As tel
 
 ## Andamento
 
-- Etapa 1: base criada com Next.js, TypeScript, Tailwind CSS, Prisma e Vitest; versões fixadas e comandos de execução documentados no README. PostgreSQL local configurado via Docker Compose, ainda sem conexão verificada por falta de serviço Docker disponível; modelos, migração e primeiros testes foram preparados na etapa 2.
-- Verificações da base: lint, tipos, schema Prisma, Docker Compose e build com Webpack aprovados; Vitest inicialmente configurado sem casos; testes de permissões e validação adicionados na etapa 2. Alertas de dependências do lint e limitação do PostgreSQL registrados no README.
-- Organização definida e criada: `src/app`, `src/components`, `src/server` (auth, db, services e quotes), `src/schemas` e `src/domain`. As responsabilidades estão descritas na arquitetura.
-- Etapa 2: decisões de login, sessão, permissões e dados fictícios registradas. Schema Prisma com quatro entidades, validações Zod e matriz de permissões preparados. Frankfurter/ECB avaliado nos seis pares; data diária preservada no modelo. Migração inicial gerada sem conexão e ainda não aplicada no PostgreSQL.
-- Etapas 3 a 7: não iniciadas. A implementação do login, dos serviços protegidos e do bootstrap do administrador vem na etapa 3.
+- Etapa 1: base e execução local configuradas. PostgreSQL iniciado pelo Docker Compose e conexão validada.
+- Organização definida: `src/app`, `src/components`, `src/server` (auth, db, services e quotes), `src/schemas` e `src/domain`.
+- Etapa 2: acesso e regras dos dados fictícios definidos; schema com quatro entidades e migração inicial aplicada no PostgreSQL local e no banco de testes. Frankfurter/ECB avaliado nos seis pares, com data diária preservada no modelo.
+- Etapa 3: autenticação e cadastros implementados pela API. Login/logout com Auth.js, hash Argon2id, guardas com sessão e perfil atual do banco, bootstrap local e endpoints de funcionários/clientes. Testes unitários, integração PostgreSQL e fluxo HTTP real verificados. Não foi criado acesso padrão no banco da aplicação; o usuário configura seu administrador pelo bootstrap.
+- Etapa 6 (parcial): `/login`, `/inicio`, `/funcionarios` e `/funcionarios/novo`, com login/logout, lista de acessos e cadastro exclusivo do administrador. As telas de clientes, simulações, operações e gráficos continuam pendentes.
+- Verificações: lint, tipos, schema Prisma, build e testes unitários e de integração. Verificação visual realizada em desktop e celular, incluindo erro de login, confirmação de senha, e-mail duplicado, criação, logout e bloqueio do operador. Alertas já conhecidos nas dependências do lint continuam registrados no README.
+- Etapas 4, 5 e 7: não iniciadas. A próxima entrega é o adaptador de cotações e a simulação com cálculo decimal. A etapa 6 foi iniciada pelas telas de acesso e funcionários; as demais telas continuam para depois dos respectivos fluxos de servidor.
 
 ## Etapas
 
