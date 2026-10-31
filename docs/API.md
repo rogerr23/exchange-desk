@@ -113,16 +113,20 @@ Sucesso retorna HTTP 200 com `{ data: ... }` e `Cache-Control: no-store`. O cont
 
 O cache de cotações dura 15 minutos por par, em memória do processo. Consultas externas têm timeout de 5 segundos, sem repetição automática. Erros de rede, timeout, HTTP do provedor ou resposta inválida retornam HTTP 503 com código `QUOTE_UNAVAILABLE` e mensagem “Não foi possível consultar a cotação agora. Tente novamente em instantes.” Não há resultado substituto ou cotação fictícia em falhas. Entradas inválidas retornam 400; resultados fora dos limites técnicos retornam 400 com `AMOUNT_OUT_OF_RANGE`.
 
-Simular não cria operação nem auditoria. O token tem integridade verificável, sem criptografia do conteúdo. O registro da operação garante uma única confirmação por simulação, por restrição persistida no banco. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de confirmação está disponível abaixo; a tela `/simulacoes` apresenta alertas persistentes e permite tentar novamente preservando os campos.
+Cada simulação bem-sucedida salva um registro de histórico associado ao funcionário, sem criar operação nem auditoria de operação. Falha na gravação do histórico retorna erro e não entrega um novo token confirmável. O token tem integridade verificável, sem criptografia do conteúdo. O registro da operação garante uma única confirmação por simulação, por restrição persistida no banco. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de confirmação está disponível abaixo; a tela `/simulacoes` apresenta alertas persistentes e permite tentar novamente preservando os campos.
+
+### Histórico de simulações
+
+`GET /api/simulacoes` exige sessão e retorna `{ data: [...] }`, com `Cache-Control: no-store`. Retorna até 50 simulações mais recentes por emissão: somente as do próprio operador ou todas para o administrador. Inclui id, autoria pública (id e nome), valores decimais como strings, taxa, fonte, referência diária, instante de consulta, emissão, expiração e `operationId` (nulo enquanto não confirmada). Não retorna token nem chave de confirmação. Simulações anteriores à migração não são recuperadas. O histórico permanece após expirar e não permite renovar ou confirmar um token vencido; **Simular novamente** exige nova consulta e revisão.
 
 ## Operações e auditoria
 
-Todas as rotas exigem sessão de administrador ou operador e retornam `Cache-Control: no-store`. Mutações exigem JSON e recusam `Origin` diferente da aplicação.
+Todas as rotas exigem sessão de administrador ou operador e retornam `Cache-Control: no-store`. Operadores só listam, consultam detalhes e auditoria, contam ou alteram operações criadas por eles; administradores acessam toda a equipe. IDs fora do escopo do operador retornam 404, inclusive em alterações de status. Mutações exigem JSON e recusam `Origin` diferente da aplicação.
 
 | Método e rota | Resultado |
 | --- | --- |
 | `POST /api/operacoes` | Confirma simulação para um cliente; 201 na criação, 200 no reenvio da mesma confirmação |
-| `GET /api/operacoes` | Lista da equipe, em ordem de criação decrescente; sem paginação nesta V1 |
+| `GET /api/operacoes` | Lista no escopo do usuário, em ordem de criação decrescente; sem paginação nesta V1 |
 | `GET /api/operacoes/:id` | Detalhes com eventos de auditoria em ordem cronológica |
 | `PATCH /api/operacoes/:id/status` | Altera status e grava auditoria na mesma transação |
 
@@ -151,4 +155,4 @@ await fetch(`/api/operacoes/${operation.id}/status`, {
 });
 ```
 
-Transições: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Saltos, repetições, regressões e reabertura retornam 409 `INVALID_TRANSITION`. Se o status atual difere de `expectedStatus`, retorna 409 `STATUS_CONFLICT` e orienta atualizar os dados. Somente a transição vencedora em uma disputa grava seu evento. Falha de auditoria desfaz também a criação/alteração da operação. Cliente ou operação inexistente retorna 404. A interface de confirmação está em `/simulacoes`; a listagem e os detalhes com auditoria estão em `/operacoes` e `/operacoes/:id`. A visão geral `/inicio` apresenta as quantidades reais por status.
+Transições: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Saltos, repetições, regressões e reabertura retornam 409 `INVALID_TRANSITION`. Se o status atual difere de `expectedStatus`, retorna 409 `STATUS_CONFLICT` e orienta atualizar os dados. Somente a transição vencedora em uma disputa grava seu evento. Falha de auditoria desfaz também a criação/alteração da operação. Cliente ou operação inexistente retorna 404. A interface de confirmação está em `/simulacoes`; a listagem e os detalhes com auditoria estão em `/operacoes` e `/operacoes/:id`. O painel `/inicio` apresenta as quantidades reais por status e o total de simulações salvas, limitados ao mesmo escopo de autoria, além de atividades recentes e orientações.

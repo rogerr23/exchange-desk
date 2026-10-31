@@ -210,7 +210,7 @@ Auth.js cuida da autenticação e sessão; a aplicação continuará responsáve
 
 ### Decisões para a V1
 
-- Uma única equipe: os dois perfis acessam todos os clientes, operações e eventos de auditoria. Ambos podem simular, registrar operações e alterar status dentro do fluxo permitido. Apenas `ADMIN` cadastra e lista funcionários.
+- Uma única equipe com clientes compartilhados. `OPERATOR` lista, conta, consulta auditoria e altera somente operações de sua autoria; `ADMIN` acompanha toda a equipe. O escopo vem do funcionário autenticado consultado no banco e é aplicado nos serviços, inclusive leitura por ID e alteração transacional de status. Registros fora do escopo retornam 404. Apenas `ADMIN` cadastra e lista funcionários.
 - Login por e-mail e senha usando [Credentials do Auth.js](https://authjs.dev/getting-started/authentication/credentials). A aplicação consulta seu próprio `User` pelo e-mail normalizado e verifica o hash; Auth.js não cria usuários automaticamente.
 - Hash Argon2id com `@node-rs/argon2`, memória de 19 MiB, duas iterações e paralelismo 1. Senhas de 12 a 128 caracteres; não remover espaços nem exigir combinações de símbolos. Nome com 2 a 100 caracteres; e-mail normalizado e único, com até 254 caracteres.
 - Sessão JWT em cookie gerenciado pelo Auth.js, com `maxAge` de oito horas e renovação padrão da biblioteca, sem um mecanismo próprio de sessões. O perfil é obtido de dados confiáveis no servidor. Logout remove o cookie da sessão no navegador; revogação central de tokens e gestão de dispositivos ficam fora da V1.
@@ -251,6 +251,14 @@ Já existem testes unitários das regras e guardas, testes de integração dos c
 | Cotações e simulação | Servidor e tela implementados conforme seções 5 e 6 |
 | Entradas de servidor | Simulação por Route Handler definida; entradas dos demais fluxos serão escolhidas ao implementá-los |
 | Visão geral | Contadores por status implementados; gráficos e Recharts adiados por decisão do usuário |
-| Publicação | Hospedagem, PostgreSQL, variáveis e aplicação das migrações |
+| Ambiente | Desenvolvimento local com PostgreSQL; publicação e escolha de hospedagem adiadas |
 
 As decisões devem ser atualizadas nestes documentos quando resolvidas. Microsserviços, filas, pagamentos, saldos e mecanismos financeiros adicionais não são necessários para o escopo da V1.
+
+### Painel pessoal e simulações persistidas
+
+A tabela `Simulation` registra cada consulta bem-sucedida com `createdById`, moedas, valores decimais, taxa, fonte, referência diária, consulta, emissão e expiração. Uma chave SHA-256 calculada sobre o payload normalizado com o mesmo schema do token permite associar o histórico à `ExchangeOperation.confirmationKey`, sem guardar o token. A geração da chave é compartilhada pela simulação e confirmação. O histórico é gravado antes de entregar o resultado confirmável; falha de persistência impede esse resultado. Não há dados retroativos de consultas anteriores.
+
+`listSimulations`, `getSimulationCount`, `listOperations` e `getOperationSummary` aplicam a autoria do operador no banco; o administrador não recebe esse filtro. Detalhes e alterações de operações também aplicam autoria, inclusive no update condicional que protege concorrência. `/simulacoes/historico` e `GET /api/simulacoes` retornam no máximo 50 consultas recentes, com autor público e operação associada, sem chave nem token. A ação de repetir somente preenche o formulário: nova consulta e confirmação são obrigatórias.
+
+`/inicio` adapta navegação e conteúdo por perfil, mostrando contagens reais do escopo, cinco simulações e cinco operações recentes, orientações do fluxo e limites dos valores exibidos. Clientes permanecem compartilhados, sem nova regra de carteira.

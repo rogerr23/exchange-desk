@@ -2,6 +2,8 @@
 
 A ordem abaixo organiza a implementação do escopo documentado. As propostas e pendências dos documentos continuam em aberto; esta sequência não as transforma em decisões aprovadas.
 
+Para a evolução V1.1, consultar [as decisões aprovadas](./V1_1_DECISIONS.md): um perfil por funcionário entre Consultor de Câmbio, Analista de Operações, Gerente e Administrador, sem acúmulo de funções. Essa evolução ainda não está implementada; o andamento abaixo descreve a V1.
+
 A implementação começa pela API e pelos serviços no próprio Next.js. As telas vêm após os fluxos de servidor. Os testes essenciais acompanham cada fluxo: autorização, conversão/arredondamento, transições, falha do provedor, integridade/expiração da simulação e consistência de operação/auditoria, incluindo conflito de atualização. Sem meta de cobertura, teste por arquivo ou duplicação da mesma regra em várias camadas. Telas e comportamento visual serão conferidos manualmente; a política enxuta de testes e execução está em ARCHITECTURE.md, seção 8.
 
 ## Andamento
@@ -19,7 +21,7 @@ A implementação começa pela API e pelos serviços no próprio Next.js. As tel
 - Confirmação na interface aprovada: revisão do cliente/valores/referência/validade, Voltar e Confirmar operação, carregamento com botão bloqueado, erros em alerta e redirecionamento aos detalhes após sucesso.
 - Verificação visual da etapa 6: banco de testes isolado, desktop e celular (390 e 320 px), cadastro e simulação com cotação real, falha do provedor e nova tentativa, confirmação e auditoria, conclusão pelo administrador e cancelamento pelo operador. Visão geral com contadores correspondentes e sem rolagem horizontal da página.
 - Validação da etapa 6: 39 testes unitários passaram, incluindo preservação de centavos na formatação; lint, tipos e build verificados. Nenhum teste de componente foi adicionado. A verificação visual usou dados e acessos exclusivamente no banco descartável; o banco da aplicação não recebeu operações de demonstração.
-- Etapa 7: não iniciada. Próxima entrega: definir hospedagem/PostgreSQL, configurar variáveis e migrações e verificar a V1 publicada.
+- Etapa 7: publicação adiada por decisão do usuário. O foco atual é consolidar a execução local e evoluir para a V1.1.
 
 ## Etapas
 
@@ -29,6 +31,6 @@ A implementação começa pela API e pelos serviços no próprio Next.js. As tel
 4. **Implementar cotações e simulações.** Implementar o adaptador Frankfurter/ECB para os seis pares direcionais entre BRL, USD e EUR, seguindo a normalização, timeout de 5 segundos e cache em memória por 15 minutos definidos na arquitetura. Aplicar a política decimal existente e expor `POST /api/simulacoes`, apresentando fonte, data diária e horário de consulta com os rótulos corretos. Emitir token assinado com validade de 15 minutos para preservar a simulação até a confirmação. Cobrir os comportamentos essenciais com testes pequenos e parametrizados quando útil, sem depender da API externa real.
 5. **Registrar operações com auditoria.** Confirmar no servidor a referência confiável e os valores apresentados ao usuário. Criar operação Pendente e evento inicial na mesma transação, com confirmação idempotente por simulação. Implementar listagem, detalhes e as transições permitidas, com atualização condicionada ao status esperado para tratar concorrência.
 6. **Criar a interface e validar a V1.** Implementar o resumo com contadores por status (gráficos adiados por decisão aprovada) e as telas responsivas em português, incluindo estados vazios, carregamento e erros. Reexecutar os testes essenciais criados nas etapas da API, sem exigir cobertura total nem testes de detalhes visuais ou de bibliotecas; verificar transações e concorrência em banco de teste isolado; conferir manualmente o fluxo completo nos dois perfis, em computador e celular.
-7. **Preparar a publicação.** Definir hospedagem e PostgreSQL, configurar variáveis e migrações, documentar a execução local e verificar os critérios de aceite de cada requisito antes de considerar a V1 concluída.
+7. **Consolidar a entrega local.** Conferir a execução e as migrações locais, manter a documentação atualizada e verificar os critérios de aceite dos requisitos. Publicação e escolha de hospedagem ficam adiadas.
 
 A estrutura de código definida está em [ARCHITECTURE.md](./ARCHITECTURE.md). Os critérios para verificar cada entrega estão em [REQUIREMENTS.md](./REQUIREMENTS.md).

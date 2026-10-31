@@ -8,6 +8,8 @@ O ExchangeDesk é uma aplicação de gestão interna, com acesso restrito a func
 
 Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como proposta ou pendência não devem ser tratados como decisões já aprovadas.
 
+As decisões já aprovadas para a evolução V1.1 estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Elas descrevem o destino da evolução; os dois perfis documentados abaixo continuam representando a implementação atual da V1.
+
 ## 2. Perfis e acesso
 
 | Perfil | Responsabilidade definida |
@@ -23,9 +25,10 @@ A V1 representa uma única equipe, sem separação por empresa ou por carteira d
 | Cadastrar e listar funcionários | Sim | Não |
 | Cadastrar e consultar clientes | Sim | Sim |
 | Simular conversões | Sim | Sim |
-| Criar e consultar operações de toda a equipe | Sim | Sim |
-| Alterar status de qualquer operação, respeitando o fluxo | Sim | Sim |
-| Consultar auditoria das operações da equipe | Sim | Sim |
+| Criar e consultar operações | Toda a equipe | Somente próprias |
+| Alterar status, respeitando o fluxo | Toda a equipe | Somente próprias |
+| Consultar auditoria das operações | Toda a equipe | Somente próprias |
+| Consultar histórico de simulações | Toda a equipe | Somente próprias |
 
 Nenhuma dessas ações é permitida sem sessão. O perfil usado para autorizar vem da sessão verificada no servidor, nunca de um campo enviado pelo navegador. Listar funcionários retorna apenas identificador, nome, e-mail e perfil; nunca hash ou senha.
 
@@ -90,7 +93,7 @@ O provedor escolhido é Frankfurter v2, consultando a fonte ECB para os seis par
 
 **Aceite:** o resultado corresponde à fórmula e à política decimal definida em ARCHITECTURE.md; entradas inválidas são recusadas; uma simulação isolada não aparece como operação.
 
-Não é obrigatório persistir um histórico de simulações independentes. A referência assinada deve preservar os valores apresentados; assinatura inválida, expiração ou funcionário diferente impedem a confirmação. Uma simulação expirada exige nova simulação e nova confirmação do resultado.
+Cada simulação bem-sucedida deve persistir um histórico independente por autor. A tela e a API exibem até 50 consultas recentes do escopo do usuário, sem tokens ou chaves internas. Simulações anteriores à implementação não são recuperadas. A referência assinada deve preservar os valores apresentados; assinatura inválida, expiração ou funcionário diferente impedem a confirmação. Uma simulação expirada exige nova simulação e nova confirmação do resultado.
 
 ### RF06 — Operações
 
@@ -136,7 +139,7 @@ Auditoria completa de login e de todas as alterações cadastrais não faz parte
 - Manter testes essenciais com Vitest para conversão, transições de status, validações, autorização, falhas do provedor e integridade/expiração da referência de simulação. Sem meta de cobertura, teste por componente ou repetição da mesma regra em várias camadas; a política de execução está em ARCHITECTURE.md.
 - Verificar a transação de operação/auditoria e conflitos de atualização em testes de integração com banco de teste.
 
-Decisão aprovada para esta entrega: a visão geral apresenta somente as quantidades de operações Pendentes, Em análise, Concluídas e Canceladas e o total da equipe. Os números vêm do banco e exibem zero quando não há registros. Gráficos e a dependência Recharts ficam adiados; não são critérios de conclusão da V1 atual.
+O painel apresenta as quantidades de operações Pendentes, Em análise, Concluídas e Canceladas, o total de operações e o total de simulações salvas. O operador vê somente sua autoria; o administrador vê a equipe. Inclui cinco operações e cinco simulações recentes, atalhos e orientações sobre cálculo, prazo, referência diária e transições. Os números vêm do banco e exibem zero quando não há registros. Gráficos e a dependência Recharts ficam adiados; não são critérios de conclusão da V1 atual.
 
 ## 5. Pendências antes da implementação correspondente
 
@@ -144,7 +147,7 @@ Decisão aprovada para esta entrega: a visão geral apresenta somente as quantid
 | --- | --- |
 | Cotações, simulações e operações | Servidor e telas operacionais implementados |
 | Interface | Contadores por status aprovados e implementados; gráficos adiados |
-| Ambiente | Hospedagem e variáveis das integrações; base local e scripts definidos no README |
+| Ambiente | Desenvolvimento local e scripts definidos no README; publicação e escolha de hospedagem adiadas |
 
 ## 6. Critério de conclusão da V1
 

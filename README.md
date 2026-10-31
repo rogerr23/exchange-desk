@@ -93,7 +93,7 @@ Acesse `/login` para entrar. Após o login, `/inicio` apresenta o espaço da equ
 | `npm run admin:create` | Criar o primeiro administrador com dados do ambiente |
 | `npm run db:test:deploy` | Aplicar migrações exclusivamente no TEST_DATABASE_URL |
 | `npm run db:migrate -- --name init` | Criar e aplicar uma migração no desenvolvimento |
-| `npm run db:deploy` | Aplicar migrações existentes no ambiente de publicação |
+| `npm run db:deploy` | Aplicar migrações existentes no banco local configurado |
 | `npm run db:studio` | Abrir o explorador do banco |
 
 O schema define funcionários, clientes, operações e auditoria. As migrações incluem a base e a chave única de confirmação de operações. Aplique-as com `npm run db:deploy` antes de usar as novas rotas. Em um novo ambiente, use `db:deploy` para aplicar as migrações existentes. Para novas alterações do schema, use `db:migrate`. O bootstrap é exclusivo do comando local; os demais funcionários são cadastrados por administrador autenticado.
@@ -136,15 +136,13 @@ Valores com duas casas decimais e taxas com oito. Cálculos com aritmética deci
 
 Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. Login, logout, bootstrap e serviços de cadastros já estão implementados.
 
-Administrador e operador acessam os clientes, operações e auditoria da mesma equipe; apenas o administrador cadastra e lista funcionários. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
+O operador possui um painel pessoal em `/inicio`, com simulações e operações próprias; listagem, detalhes, totais, auditoria e alterações de status respeitam sua autoria no servidor. O administrador acompanha as atividades de toda a equipe e é o único que cadastra e lista funcionários. Clientes continuam compartilhados. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
 
 ## Próxima entrega e decisões pendentes
 
 A etapa 4 está implementada no servidor: `POST /api/simulacoes`, timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está em [ARCHITECTURE.md](./docs/ARCHITECTURE.md). A etapa 5 também está implementada no servidor: confirmação sem duplicação, consultas, transições de status e auditoria atômica. As telas operacionais estão implementadas: clientes, simulação com revisão e validade, confirmação, listagem e detalhes com transições e auditoria. A visão geral usa somente contadores reais por status, conforme a opção aprovada.
 
-A próxima etapa é definir o ambiente de publicação, configurar as variáveis e migrações e conferir o fluxo no ambiente publicado. Gráficos e a adoção de Recharts ficam adiados, sem bloquear a V1.
-
-A pendência de publicação não altera o escopo funcional fechado. Devem ser resolvidas antes da implementação das partes correspondentes; as propostas estão em [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+O foco atual é o desenvolvimento local e a evolução para a V1.1, conforme [as decisões aprovadas](./docs/V1_1_DECISIONS.md). Publicação e escolha de hospedagem estão adiadas, sem bloquear o desenvolvimento. Gráficos e a adoção de Recharts também ficam adiados.
 
 ## Documentação
 
@@ -152,3 +150,9 @@ A pendência de publicação não altera o escopo funcional fechado. Devem ser r
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md): organização técnica, dados e decisões pendentes.
 - [IMPLEMENTATION_PLAN.md](./docs/IMPLEMENTATION_PLAN.md): sequência de implementação da V1.
 - [API.md](./docs/API.md): preparação do acesso, endpoints e exemplos de uso.
+
+### Painel do operador e histórico de simulações
+
+Aplique a migração `20261031183000_operator_workspace` com `npm run db:deploy` antes de iniciar esta versão. Cada simulação bem-sucedida passa a ser salva com seu autor, valores, taxa, fonte, referência e prazo original. Não há recuperação retroativa de simulações anteriores. `/simulacoes/historico` e `GET /api/simulacoes` mostram as 50 consultas mais recentes do escopo do usuário, com acesso à operação quando confirmada. A opção **Simular novamente** preenche as moedas e o valor, mas exige uma nova consulta e revisão. O histórico não armazena tokens nem renova a validade de 15 minutos.
+
+O painel mostra indicadores reais, cinco operações e cinco simulações recentes, além de explicações sobre cálculo, referência diária e etapas de acompanhamento. A simulação aplica apenas a taxa de referência, sem calcular tarifas, spread ou impostos; registrar e concluir operações não executa pagamentos.
