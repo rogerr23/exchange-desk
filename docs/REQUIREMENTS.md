@@ -73,6 +73,7 @@ Não há consulta de CPF nem validação dos seus dígitos verificadores. O CPF 
 - Obter dados reais de referência de uma API pública pelo servidor.
 - Apresentar o par de moedas, a taxa utilizada, a fonte e o horário da referência.
 - Informar indisponibilidade ou ausência de um par sem inventar uma taxa.
+- Em falhas de consulta, exibir alerta estilizado junto ao formulário, com mensagem intuitiva e ação “Tentar novamente”, preservando os campos preenchidos. O alerta deve ser acessível e permanecer até nova tentativa ou alteração dos dados, conforme ARCHITECTURE.md. Nunca apresentar cotação fictícia ou resultado substituto como se fossem válidos.
 
 **Aceite:** uma resposta válida da API pode alimentar a simulação; falhas geram uma mensagem compreensível; o usuário consegue identificar a referência utilizada.
 
@@ -139,7 +140,7 @@ Recharts está definido na stack. **Proposta a confirmar:** um resumo de quantid
 
 | Decisão | O que falta definir |
 | --- | --- |
-| Cotações e simulações | Decisões definidas em ARCHITECTURE.md; implementação na etapa 4 |
+| Cotações e simulações | Servidor implementado na etapa 4; interface e confirmação de operação pendentes |
 | Interface | Conteúdo mínimo do resumo com Recharts |
 | Ambiente | Hospedagem e variáveis das integrações; base local e scripts definidos no README |
 

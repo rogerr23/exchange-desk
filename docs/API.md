@@ -1,6 +1,6 @@
 # API — ExchangeDesk V1
 
-Autenticação e cadastros estão disponíveis pelo servidor. Já existem telas de login, listagem e criação de funcionários; as demais telas de trabalho continuam para as próximas etapas. Os exemplos abaixo usam dados de teste.
+Autenticação, cadastros e simulações estão disponíveis pelo servidor. Já existem telas de login, listagem e criação de funcionários; as demais telas de trabalho continuam para as próximas etapas. Os exemplos abaixo usam dados de teste.
 
 ## Preparar o acesso
 
@@ -77,3 +77,40 @@ Sucesso: `{ "data": ... }`, com HTTP 200 em consultas e 201 em criações. Erros
 | 500 | Falha interna com mensagem genérica, sem detalhes do banco |
 
 Mutações exigem JSON e recusam o cabeçalho `Origin` quando diferente da origem configurada. Requisições entre sites não recebem permissão CORS. Clientes HTTP fora do navegador precisam manter os cookies e seguir o fluxo CSRF do Auth.js para entrar e sair.
+
+## Simulações
+
+`POST /api/simulacoes` exige sessão de administrador ou operador, JSON e a mesma proteção de origem dos cadastros. Exemplo após entrar na aplicação:
+
+```js
+const response = await fetch("/api/simulacoes", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    sourceCurrency: "USD",
+    targetCurrency: "BRL",
+    sourceAmount: "100.00",
+  }),
+});
+console.log(response.status, await response.json());
+```
+
+Aceita somente BRL, USD e EUR, com moedas diferentes. `sourceAmount` deve ser uma string decimal positiva, sem separadores de milhar, com ponto e no máximo duas casas; valores e resultados devem caber em `Decimal(18,2)`. Campos extras são recusados.
+
+Sucesso retorna HTTP 200 com `{ data: ... }` e `Cache-Control: no-store`. O conteúdo inclui:
+
+| Campo | Significado |
+| --- | --- |
+| `sourceCurrency`, `targetCurrency` | Par da simulação |
+| `sourceAmount`, `targetAmount` | Valores como strings com duas casas decimais |
+| `exchangeRate` | Taxa aplicada, string com oito casas decimais |
+| `quoteProvider` | Frankfurter / ECB |
+| `quoteReferenceDate` | Data diária da observação, sem hora |
+| `quoteFetchedAt` | Instante original da consulta, preservado ao reutilizar o cache |
+| `quoteTimestamp`, `quoteTimestampKind` | Instante da consulta e rótulo `FETCHED_AT`; não representa horário de mercado |
+| `issuedAt`, `expiresAt` | Emissão da simulação e expiração após 15 minutos |
+| `simulationToken` | Referência assinada vinculada ao funcionário; guardar para a futura confirmação |
+
+O cache de cotações dura 15 minutos por par, em memória do processo. Consultas externas têm timeout de 5 segundos, sem repetição automática. Erros de rede, timeout, HTTP do provedor ou resposta inválida retornam HTTP 503 com código `QUOTE_UNAVAILABLE` e mensagem “Não foi possível consultar a cotação agora. Tente novamente em instantes.” Não há resultado substituto ou cotação fictícia em falhas. Entradas inválidas retornam 400; resultados fora dos limites técnicos retornam 400 com `AMOUNT_OUT_OF_RANGE`.
+
+Simular não cria operação nem auditoria. O token tem integridade verificável, sem criptografia do conteúdo e sem garantia de uso único. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de confirmação e a tela com alerta visual pertencem às próximas etapas.

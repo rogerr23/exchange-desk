@@ -187,7 +187,13 @@ Na avaliação do provedor, as três bases BRL, USD e EUR retornaram os dois des
 - Em timeout, erro HTTP, resposta inválida ou par ausente, informar indisponibilidade e impedir uma nova simulação. Não usar taxa fictícia como alternativa. Uma simulação assinada já emitida continua válida até sua expiração.
 - Consultar somente mediante solicitação autenticada de simulação, reutilizando o cache enquanto válido. Sem atualização em segundo plano, polling, limitador distribuído ou infraestrutura adicional nesta etapa.
 
-A entrada será `POST /api/simulacoes`, com moedas e valor de origem como string decimal. O serviço verifica `quotes:simulate`, valida a entrada e retorna o resultado, a referência, `expiresAt` e o token de confirmação. A resposta HTTP usa `Cache-Control: no-store`; o cache de cotações fica exclusivamente no servidor. A criação da operação e o consumo desse token pertencem à etapa 5. Não é necessário criar um endpoint separado de cotações para esta entrega.
+A entrada será `POST /api/simulacoes`, com moedas e valor de origem como string decimal. O serviço verifica `quotes:simulate`, valida a entrada e retorna o resultado, a referência, `expiresAt` e o token de confirmação. A resposta HTTP usa `Cache-Control: no-store`; o cache de cotações fica exclusivamente no servidor. O adaptador, o serviço, a entrada HTTP e as funções de assinatura/verificação estão implementados. A criação da operação e o consumo desse token pertencem à etapa 5. Não é necessário criar um endpoint separado de cotações para esta entrega.
+
+### Apresentação de falhas na interface
+
+Usar um alerta estilizado junto ao formulário de simulação, seguindo o padrão existente `notice notice-error`, com ícone, texto em português e `role="alert"`. Mensagem padrão: **“Não foi possível consultar a cotação agora. Tente novamente em instantes.”** Oferecer a ação **“Tentar novamente”**, preservando as moedas e o valor preenchidos. Durante a tentativa, indicar carregamento e impedir envios repetidos.
+
+O alerta permanece visível até uma nova tentativa ou alteração dos dados; não desaparece por um temporizador. Falhas esperadas de consulta não exigem modal. Não exibir detalhes técnicos do provedor, taxas fictícias, resultado zero como substituto ou cache vencido. Uma tentativa que falhou não produz um novo resultado confirmável. Se uma simulação anterior ainda válida permanecer na tela, identificá-la como anterior, com seu prazo original, sem apresentá-la como resultado da tentativa que falhou; alterações nas moedas ou no valor exigem nova simulação antes da confirmação.
 
 ## 7. Autenticação e autorização
 
@@ -231,7 +237,7 @@ Já existem testes unitários das regras e guardas, testes de integração dos c
 | Tema | Decisão a registrar |
 | --- | --- |
 | Ambiente | Base definida: Node.js 22.14.0, npm 11.6.2 e PostgreSQL 17; versões e scripts em `package.json` |
-| Cotações e simulação | Definidas nas seções 5 e 6; implementação pendente |
+| Cotações e simulação | Implementadas no servidor conforme seções 5 e 6; tela pendente |
 | Entradas de servidor | Simulação por Route Handler definida; entradas dos demais fluxos serão escolhidas ao implementá-los |
 | Gráficos | Conteúdo mínimo com Recharts |
 | Publicação | Hospedagem, PostgreSQL, variáveis e aplicação das migrações |

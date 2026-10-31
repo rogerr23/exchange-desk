@@ -43,7 +43,7 @@ O status Concluída indica o encerramento do fluxo interno da operação; pagame
 
 ## Execução local
 
-Login e gerenciamento de funcionários já têm telas próprias. Autenticação e cadastros de funcionários/clientes também estão disponíveis pela API. Cotações, operações e as demais telas serão implementadas nas próximas etapas.
+Login e gerenciamento de funcionários já têm telas próprias. Autenticação e cadastros de funcionários/clientes também estão disponíveis pela API. Cotações e simulações estão disponíveis pela API; operações e as demais telas serão implementadas nas próximas etapas.
 
 Ambiente de referência: **Node.js 22.14.0** (ver `.nvmrc`), **npm 11.6.2** e **PostgreSQL 17**. As versões das dependências estão fixadas em `package.json` e `package-lock.json`. Prisma 7 usa configuração em `prisma.config.ts` e o adaptador PostgreSQL; consulte a [documentação oficial](https://www.prisma.io/docs/orm/v7).
 
@@ -99,7 +99,7 @@ Acesse `/login` para entrar. Após o login, `/inicio` apresenta o espaço da equ
 
 O schema define funcionários, clientes, operações e auditoria. A migração inicial foi aplicada e validada no PostgreSQL local e no banco de testes. Em um novo ambiente, use `db:deploy` para aplicar as migrações existentes. Para novas alterações do schema, use `db:migrate`. O bootstrap é exclusivo do comando local; os demais funcionários são cadastrados por administrador autenticado.
 
-Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve as variáveis locais, de autenticação, bootstrap e testes. As políticas de cotações e simulação estão definidas na arquitetura e serão implementadas na etapa 4. Auth.js está fixado em `next-auth@5.0.0-beta.32`, versão beta indicada pela documentação oficial para a integração v5; Argon2 usa `@node-rs/argon2`.
+Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve as variáveis locais, de autenticação, bootstrap e testes. As políticas de cotações e simulação estão implementadas no servidor e descritas na arquitetura. Auth.js está fixado em `next-auth@5.0.0-beta.32`, versão beta indicada pela documentação oficial para a integração v5; Argon2 usa `@node-rs/argon2`.
 
 ### Validação da base
 
@@ -141,7 +141,7 @@ Administrador e operador acessam os clientes, operações e auditoria da mesma e
 
 ## Próxima entrega e decisões pendentes
 
-A etapa 4 implementará cotações e simulação: timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está definida em [ARCHITECTURE.md](./docs/ARCHITECTURE.md); a funcionalidade ainda não foi implementada.
+A etapa 4 está implementada no servidor: `POST /api/simulacoes`, timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está em [ARCHITECTURE.md](./docs/ARCHITECTURE.md). A tela de simulação está pendente. A próxima entrega é o registro de operações com auditoria.
 
 Permanecem pendentes o conteúdo mínimo dos gráficos e o ambiente de publicação.
 

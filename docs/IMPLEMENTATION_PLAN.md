@@ -13,7 +13,8 @@ A implementação começa pela API e pelos serviços no próprio Next.js. As tel
 - Etapa 6 (parcial): `/login`, `/inicio`, `/funcionarios` e `/funcionarios/novo`, com login/logout, lista de acessos e cadastro exclusivo do administrador. As telas de clientes, simulações, operações e gráficos continuam pendentes.
 - Verificações: lint, tipos, schema Prisma, build e testes unitários e de integração. Verificação visual realizada em desktop e celular, incluindo erro de login, confirmação de senha, e-mail duplicado, criação, logout e bloqueio do operador. Alertas já conhecidos nas dependências do lint continuam registrados no README.
 - Decisões da etapa 4 definidas: timeout de 5 segundos, cache em memória por 15 minutos, simulação assinada válida por 15 minutos e `POST /api/simulacoes`. Testes limitados aos comportamentos essenciais, conforme a arquitetura.
-- Etapas 4, 5 e 7: implementação não iniciada. A próxima entrega é o adaptador de cotações e a simulação com cálculo decimal. A etapa 6 foi iniciada pelas telas de acesso e funcionários; as demais telas continuam para depois dos respectivos fluxos de servidor.
+- Etapa 4: implementada no servidor. `POST /api/simulacoes` autenticado, adaptador Frankfurter/ECB com timeout e cache definidos, cálculo decimal e token assinado com verificação de integridade e expiração. Consulta real dos seis pares conferida; testes automatizados usam respostas simuladas e não dependem da rede. A tela e o alerta visual de simulação continuam pendentes na etapa 6.
+- Etapas 5 e 7: não iniciadas. A próxima entrega é o registro de operações com auditoria; a etapa 6 continua após os respectivos fluxos de servidor.
 
 ## Etapas
 
