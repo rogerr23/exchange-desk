@@ -5,13 +5,14 @@ import { Notice } from "@/components/notice";
 import { cpf, phone } from "@/lib/format";
 import { requirePagePermission } from "@/server/auth/page-access";
 import { listCustomers } from "@/server/services/customers";
+import { can } from "@/domain/permissions";
 export const metadata: Metadata = { title: "Clientes | ExchangeDesk" };
 export default async function CustomersPage({
   searchParams,
 }: {
   searchParams: Promise<{ criado?: string }>;
 }) {
-  await requirePagePermission("customers:read");
+  const actor = await requirePagePermission("customers:read");
   const customers = await listCustomers();
   const { criado } = await searchParams;
   return (
@@ -21,13 +22,13 @@ export default async function CustomersPage({
           <p className="eyebrow">Relacionamento com clientes</p>
           <h1 className="page-title">Clientes</h1>
           <p className="page-description">
-            Os contatos da equipe, prontos para uma nova operação.
+            {actor.role === "ADMIN" ? "Clientes vinculados às operações, disponíveis para suporte." : "Consulte os contatos cadastrados da equipe."}
           </p>
         </div>
-        <Link href="/clientes/novo" className="button-primary w-fit">
+        {can(actor.role, "customers:create") && <Link href="/clientes/novo" className="button-primary w-fit">
           <Icon name="plus" width="18" height="18" />
           Novo cliente
-        </Link>
+        </Link>}
       </div>
       {criado === "1" && (
         <div className="mt-6">
@@ -38,7 +39,7 @@ export default async function CustomersPage({
       )}
       <section className="surface-card mt-8 overflow-hidden">
         <div className="border-b border-line px-6 py-5 text-sm font-semibold">
-          Todos os clientes{" "}
+          {actor.role === "ADMIN" ? "Clientes com operações" : "Todos os clientes"}{" "}
           <span className="ml-2 text-muted">{customers.length}</span>
         </div>
         {customers.length === 0 ? (
@@ -49,14 +50,14 @@ export default async function CustomersPage({
               width="32"
               height="32"
             />
-            <h2 className="font-semibold">Seu primeiro cliente começa aqui.</h2>
+            <h2 className="font-semibold">Nenhum cliente disponível.</h2>
             <p className="mt-2 text-sm text-muted">
-              Cadastre um cliente para confirmar sua primeira operação.
+              {can(actor.role, "customers:create") ? "Cadastre um cliente para confirmar sua primeira operação." : "Os clientes aparecerão aqui conforme seu escopo de consulta."}
             </p>
-            <Link href="/clientes/novo" className="button-primary mt-6">
+            {can(actor.role, "customers:create") && <Link href="/clientes/novo" className="button-primary mt-6">
               Cadastrar cliente
               <Icon name="plus" width="17" height="17" />
-            </Link>
+            </Link>}
           </div>
         ) : (
           <div className="divide-y divide-line">
@@ -75,13 +76,13 @@ export default async function CustomersPage({
                     <span>{phone(customer.phone)}</span>
                   </div>
                 </div>
-                <Link
+                {can(actor.role, "quotes:simulate") && <Link
                   href={`/simulacoes?cliente=${customer.id}`}
                   className="button-secondary w-fit shrink-0"
                 >
                   Simular conversão
                   <Icon name="arrow" width="16" height="16" />
-                </Link>
+                </Link>}
               </article>
             ))}
           </div>

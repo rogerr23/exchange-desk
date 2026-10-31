@@ -2,15 +2,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./icon";
+import { can, type Role } from "@/domain/permissions";
 
-export function AppNavigation({ isAdmin }: { isAdmin: boolean }) {
+export function AppNavigation({ role }: { role: Role }) {
   const pathname = usePathname();
   const links = [
-    { href: "/inicio", label: isAdmin ? "Visão geral" : "Meu painel", icon: "grid" as const },
-    { href: "/clientes", label: "Clientes", icon: "users" as const },
-    { href: "/simulacoes", label: isAdmin ? "Simulações" : "Minhas simulações", icon: "exchange" as const },
-    { href: "/operacoes", label: isAdmin ? "Operações" : "Minhas operações", icon: "operations" as const },
-    ...(isAdmin
+    { href: "/inicio", label: role === "CONSULTANT" ? "Meu painel" : "Visão geral", icon: "grid" as const },
+    ...(can(role, "customers:read") ? [{ href: "/clientes", label: "Clientes", icon: "users" as const }] : []),
+    ...(can(role, "quotes:simulate") ? [{ href: "/simulacoes", label: "Minhas simulações", icon: "exchange" as const }] : []),
+    ...(can(role, "operations:read") ? [{ href: "/operacoes", label: role === "CONSULTANT" ? "Minhas operações" : "Operações", icon: "operations" as const }] : []),
+    ...(can(role, "employees:read")
       ? [
           {
             href: "/funcionarios",

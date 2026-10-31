@@ -2,6 +2,7 @@ import "server-only";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { authenticateCredentials } from "./credentials";
+import { isRole } from "@/domain/permissions";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: { signIn: "/login" },
@@ -30,7 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
-      if (token.role === "ADMIN" || token.role === "OPERATOR")
+      if (isRole(token.role))
         session.user.role = token.role;
       return session;
     },

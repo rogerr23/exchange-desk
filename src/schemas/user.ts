@@ -10,7 +10,7 @@ export const createUserSchema = z.strictObject({
   name: nameSchema,
   email: emailSchema,
   password: passwordSchema,
-  role: z.enum(ROLES).default("OPERATOR"),
+  role: z.enum(ROLES).default("CONSULTANT"),
 });
 
 export const loginSchema = z.strictObject({

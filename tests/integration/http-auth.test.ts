@@ -207,6 +207,36 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   const adminHtml = await adminPanel.text();
   expect(adminHtml).toContain("Visão da equipe");
   expect(adminHtml).toContain("Gerenciar funcionários");
+  expect(adminHtml).not.toContain("Nova simulação");
+  expect(adminHtml).not.toContain("Simulações salvas");
+  expect((await request("/api/simulacoes", admin)).status).toBe(403);
+  expect((await request("/api/operacoes", admin, sendJson({}))).status).toBe(403);
+  const deniedSimulation = await request("/simulacoes", admin);
+  expect(deniedSimulation.headers.get("location") || await deniedSimulation.text()).toContain("/inicio?acesso=negado");
+
+  for (const role of ["OPERATIONS_ANALYST", "MANAGER"]) {
+    const email = `${role.toLowerCase()}@example.test`;
+    expect((await request("/api/funcionarios", admin, sendJson({ name: `HTTP ${role}`, email, password, role }))).status).toBe(201);
+    const jar = await signIn(email);
+    expect((await (await request("/api/auth/session", jar)).json()).user.role).toBe(role);
+    const rolePanel = await request("/inicio", jar);
+    expect(rolePanel.status).toBe(200);
+    const html = await rolePanel.text();
+    expect(html).toContain("Toda a equipe");
+    expect(html).not.toContain("Nova simulação");
+    expect(html).not.toContain("Simulações salvas");
+    expect(html).not.toContain("Gerenciar funcionários");
+    expect((await request("/api/operacoes", jar)).status).toBe(200);
+    expect((await request("/api/funcionarios", jar)).status).toBe(403);
+    expect((await request("/api/simulacoes", jar)).status).toBe(403);
+    expect((await request("/api/simulacoes", jar, sendJson({}))).status).toBe(403);
+    expect((await request("/api/clientes", jar, sendJson({}))).status).toBe(403);
+    expect((await request("/api/operacoes", jar, sendJson({}))).status).toBe(403);
+    const statusResponse = await request("/api/operacoes/missing/status", jar, { ...sendJson({ expectedStatus: "PENDING", status: "UNDER_REVIEW" }), method: "PATCH" });
+    expect(statusResponse.status).toBe(role === "OPERATIONS_ANALYST" ? 404 : 403);
+    const clientsHtml = await (await request("/clientes", jar)).text();
+    expect(clientsHtml).not.toContain("Novo cliente");
+  }
   const deniedPage = await request("/funcionarios/novo", operator);
   // Redirecionamentos iniciados após streaming também podem vir no HTML.
   expect(
@@ -240,7 +270,8 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
     fictionalCpf: "11111111111",
     email: "cliente@example.test",
   });
-  expect((await request(`/api/clientes/${data.id}`, admin)).status).toBe(200);
+  expect((await request(`/api/clientes/${data.id}`, admin)).status).toBe(404);
+  expect((await request("/api/clientes", admin, sendJson(customer))).status).toBe(403);
   expect(
     (await request("/api/clientes", operator, sendJson(customer))).status,
   ).toBe(409);
@@ -256,6 +287,16 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
       )
     ).status,
   ).toBe(403);
+
+  // Uma sessão existente perde imediatamente as permissões do perfil anterior.
+  const consultant = await db.user.findUniqueOrThrow({ where: { email: "http-operator@example.test" } });
+  await db.user.update({ where: { id: consultant.id }, data: { role: "MANAGER" } });
+  expect((await request("/api/simulacoes", operator)).status).toBe(403);
+  expect((await request("/api/clientes", operator, sendJson(customer))).status).toBe(403);
+  const changedPanel = await (await request("/inicio", operator)).text();
+  expect(changedPanel).toContain("Gerente");
+  expect(changedPanel).not.toContain("Nova simulação");
+  await db.user.update({ where: { id: consultant.id }, data: { role: "CONSULTANT" } });
 
   const { csrfToken } = await (
     await request("/api/auth/csrf", operator)

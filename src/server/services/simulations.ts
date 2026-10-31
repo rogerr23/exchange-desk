@@ -40,8 +40,8 @@ export async function simulateConversion(input: unknown) {
 }
 
 export async function listSimulations(limit = 50) {
-  const actor = await requirePermission("quotes:simulate");
-  const scope = actor.role === "ADMIN" ? {} : { createdById: actor.id };
+  const actor = await requirePermission("simulations:read");
+  const scope = { createdById: actor.id };
   const db = getDb();
   const rows = await db.simulation.findMany({
     where: scope, orderBy: [{ issuedAt: "desc" }, { id: "asc" }], take: Math.min(limit, 50),
@@ -60,6 +60,6 @@ export async function listSimulations(limit = 50) {
 }
 
 export async function getSimulationCount() {
-  const actor = await requirePermission("quotes:simulate");
-  return getDb().simulation.count({ where: actor.role === "ADMIN" ? {} : { createdById: actor.id } });
+  const actor = await requirePermission("simulations:read");
+  return getDb().simulation.count({ where: { createdById: actor.id } });
 }

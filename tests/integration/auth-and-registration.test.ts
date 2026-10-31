@@ -84,7 +84,7 @@ describe("autenticação e cadastros com PostgreSQL", () => {
     const admin = await bootstrapAdmin(initialAdmin);
     await loginAs(admin.id);
     const operator = await createEmployee({ name: "Operador de Teste", email: "operator@example.test", password: "senha de operador teste" });
-    expect(operator.role).toBe("OPERATOR");
+    expect(operator.role).toBe("CONSULTANT");
     expect(operator).not.toHaveProperty("passwordHash");
     expect((await listEmployees()).every((employee) => !("passwordHash" in employee))).toBe(true);
 
@@ -107,7 +107,9 @@ describe("autenticação e cadastros com PostgreSQL", () => {
     await expect(createCustomer({ ...input, fictionalCpf: "invalido" })).rejects.toHaveProperty("name", "ZodError");
     expect(await db.customer.count()).toBe(1);
     await loginAs(admin.id);
-    expect(await listCustomers()).toHaveLength(1);
+    expect(await listCustomers()).toHaveLength(0);
+    await expect(getCustomer(customer.id)).rejects.toMatchObject({ status: 404 });
+    await expect(createCustomer(input)).rejects.toMatchObject({ status: 403 });
     await expect(getCustomer("missing")).rejects.toMatchObject({ status: 404 });
   });
 

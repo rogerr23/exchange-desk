@@ -9,7 +9,9 @@ datasource db {
 
 enum Role {
   ADMIN
-  OPERATOR
+  CONSULTANT
+  OPERATIONS_ANALYST
+  MANAGER
 }
 
 enum Currency {
@@ -40,7 +42,7 @@ model User {
   name         String                @db.VarChar(100)
   email        String                @unique @db.VarChar(254)
   passwordHash String                @db.VarChar(255)
-  role         Role                  @default(OPERATOR)
+  role         Role                  @default(CONSULTANT)
   createdAt    DateTime              @default(now()) @db.Timestamptz(3)
   operations   ExchangeOperation[]
   simulations  Simulation[]

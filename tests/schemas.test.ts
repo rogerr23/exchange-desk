@@ -37,14 +37,18 @@ describe("validação de cadastros", () => {
 describe("credenciais de funcionários", () => {
   const user = { name: "Operador Teste", email: " OPERADOR@EXAMPLE.TEST ", password: "uma senha de teste" };
 
-  it("usa operador como perfil padrão e normaliza o e-mail", () => {
+  it("usa consultor como perfil padrão e normaliza o e-mail", () => {
     const result = createUserSchema.parse(user);
-    expect(result.role).toBe("OPERATOR");
+    expect(result.role).toBe("CONSULTANT");
     expect(result.email).toBe("operador@example.test");
   });
 
   it("recusa perfil desconhecido e senha fora dos limites", () => {
     expect(createUserSchema.safeParse({ ...user, role: "SUPERUSER" }).success).toBe(false);
+    expect(createUserSchema.safeParse({ ...user, role: "OPERATOR" }).success).toBe(false);
+    for (const role of ["CONSULTANT", "OPERATIONS_ANALYST", "MANAGER", "ADMIN"]) {
+      expect(createUserSchema.parse({ ...user, role }).role).toBe(role);
+    }
     expect(createUserSchema.safeParse({ ...user, password: "curta" }).success).toBe(false);
     expect(createUserSchema.safeParse({ ...user, password: "a".repeat(129) }).success).toBe(false);
   });

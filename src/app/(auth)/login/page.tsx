@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Brand, Icon } from "@/components/icon";
 import { LoginForm } from "@/components/auth/login-form";
-import { requirePermission } from "@/server/auth/authorize";
+import { requireActor } from "@/server/auth/authorize";
 import { AppError } from "@/server/errors";
 
 export const metadata: Metadata = { title: "Entrar | ExchangeDesk" };
@@ -13,7 +13,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   try {
-    await requirePermission("customers:read");
+    await requireActor();
     redirect("/inicio");
   } catch (error) {
     if (!(error instanceof AppError && error.status === 401)) throw error;

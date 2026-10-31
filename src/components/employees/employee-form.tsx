@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { createUserSchema } from "@/schemas/user";
 import { PasswordInput } from "@/components/password-input";
 import { Icon } from "@/components/icon";
+import { ROLES, ROLE_LABELS } from "@/domain/permissions";
 
 export function EmployeeForm() {
   const router = useRouter();
@@ -146,14 +147,13 @@ export function EmployeeForm() {
             className="field-input"
             id="role"
             name="role"
-            defaultValue="OPERATOR"
+            defaultValue="CONSULTANT"
             {...accessibility("role")}
           >
-            <option value="OPERATOR">Operador</option>
-            <option value="ADMIN">Administrador</option>
+            {ROLES.map((role) => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
           </select>
           <p className="mt-2 text-xs leading-5 text-muted">
-            Operador é o perfil padrão para trabalhar com os fluxos da equipe.
+            Cada funcionário possui um único perfil. Consultor de Câmbio é o padrão para atendimento.
           </p>
           {fieldError("role")}
         </div>

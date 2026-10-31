@@ -29,7 +29,7 @@ describe("autorização no servidor", () => {
 
   it("usa o perfil atual do banco mesmo se o token indicar administrador", async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: "operator", role: "ADMIN" } } as never);
-    findUnique.mockResolvedValue({ id: "operator", role: "OPERATOR" });
+    findUnique.mockResolvedValue({ id: "operator", role: "CONSULTANT" });
     await expect(createEmployee({ role: "ADMIN" })).rejects.toMatchObject({ status: 403 });
     expect(create).not.toHaveBeenCalled();
   });

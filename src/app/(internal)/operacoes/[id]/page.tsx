@@ -15,6 +15,7 @@ import {
 import { requirePagePermission } from "@/server/auth/page-access";
 import { getOperation } from "@/server/services/operations";
 import { AppError } from "@/server/errors";
+import { can } from "@/domain/permissions";
 export const metadata: Metadata = {
   title: "Detalhes da operação | ExchangeDesk",
 };
@@ -25,7 +26,7 @@ export default async function OperationPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ confirmada?: string }>;
 }) {
-  await requirePagePermission("operations:read");
+  const actor = await requirePagePermission("operations:read");
   const { id } = await params;
   let operation;
   try {
@@ -153,7 +154,8 @@ export default async function OperationPage({
           </section>
         </div>
         <div className="min-w-0 space-y-6">
-          <StatusActions id={operation.id} status={operation.status} />
+          {can(actor.role, "operations:change-status") && actor.id !== operation.createdById && <StatusActions id={operation.id} status={operation.status} />}
+          {can(actor.role, "operations:change-status") && actor.id === operation.createdById && <Notice>Você não pode conduzir a análise de uma operação que criou.</Notice>}
           <section className="surface-card p-6">
             <h2 className="text-sm font-semibold">Dados do registro</h2>
             <dl className="mt-5 space-y-5">

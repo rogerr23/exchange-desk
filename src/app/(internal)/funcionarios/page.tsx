@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Icon } from "@/components/icon";
 import { requirePagePermission } from "@/server/auth/page-access";
 import { listEmployees } from "@/server/services/employees";
+import { ROLE_LABELS } from "@/domain/permissions";
 
 export const metadata: Metadata = { title: "Funcionários | ExchangeDesk" };
 
@@ -83,7 +84,7 @@ export default async function EmployeesPage({
                     <span
                       className={`inline-flex rounded-md px-2.5 py-1 text-xs font-medium ${employee.role === "ADMIN" ? "bg-brand-soft text-brand-ink" : "bg-canvas text-muted"}`}
                     >
-                      {employee.role === "ADMIN" ? "Administrador" : "Operador"}
+                      {ROLE_LABELS[employee.role]}
                     </span>
                   </td>
                 </tr>
@@ -101,8 +102,7 @@ export default async function EmployeesPage({
       </section>
       <p className="mt-5 flex items-center gap-2 text-xs leading-5 text-muted">
         <Icon name="info" width="15" height="15" className="shrink-0" />O
-        administrador gerencia acessos. O operador trabalha com os clientes e as
-        operações da equipe.
+        administrador cadastra os acessos. Cada funcionário possui um único perfil, conforme sua função na equipe.
       </p>
     </>
   );

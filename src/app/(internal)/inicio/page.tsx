@@ -4,6 +4,7 @@ import { Icon } from "@/components/icon";
 import { StatusBadge } from "@/components/operations/status-badge";
 import { SimulationHistory } from "@/components/simulations/simulation-history";
 import { dateTime, money } from "@/lib/format";
+import { can, ROLE_LABELS } from "@/domain/permissions";
 import { requirePagePermission } from "@/server/auth/page-access";
 import { getOperationSummary, listOperations } from "@/server/services/operations";
 import { getSimulationCount, listSimulations } from "@/server/services/simulations";
@@ -12,12 +13,26 @@ export const metadata: Metadata = { title: "Painel | ExchangeDesk" };
 export default async function StartPage({ searchParams }: { searchParams: Promise<{ acesso?: string }> }) {
   const actor = await requirePagePermission("operations:read");
   const [counts, operations, simulations, simulationCount, { acesso }] = await Promise.all([
-    getOperationSummary(), listOperations(5), listSimulations(5), getSimulationCount(), searchParams,
+    getOperationSummary(), listOperations(5),
+    can(actor.role, "simulations:read") ? listSimulations(5) : Promise.resolve([]),
+    can(actor.role, "simulations:read") ? getSimulationCount() : Promise.resolve(0), searchParams,
   ]);
-  const isAdmin = actor.role === "ADMIN";
+  const isConsultant = actor.role === "CONSULTANT";
+  const descriptions = {
+    CONSULTANT: "Suas simulações, suas operações e o próximo passo de cada atendimento.",
+    OPERATIONS_ANALYST: "Confira as operações da equipe e acompanhe sua análise.",
+    MANAGER: "Supervisione as operações e os indicadores da equipe.",
+    ADMIN: "Gerencie os acessos e consulte operações para suporte à equipe.",
+  };
+  const guidance = {
+    CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e confirme antes do prazo de 15 minutos. A operação será registrada como Pendente.", "Acompanhe a análise pelo histórico da operação."],
+    OPERATIONS_ANALYST: ["Consulte as operações Pendentes da equipe.", "Confira o cliente, os valores e a referência registrada.", "Acompanhe a análise nos detalhes da operação. Toda alteração fica na auditoria."],
+    MANAGER: ["Acompanhe os indicadores de toda a equipe.", "Consulte os detalhes e o histórico das operações para supervisão."],
+    ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
+  };
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   const metrics = [
-    { label: "Simulações salvas", value: simulationCount, note: "Desde a criação do histórico", href: "/simulacoes/historico" },
+    ...(can(actor.role, "simulations:read") ? [{ label: "Simulações salvas", value: simulationCount, note: "Desde a criação do histórico", href: "/simulacoes/historico" }] : []),
     { label: "Pendentes", value: counts.PENDING, note: "Registradas, aguardando análise", href: "/operacoes" },
     { label: "Em análise", value: counts.UNDER_REVIEW, note: "Em conferência de dados", href: "/operacoes" },
     { label: "Concluídas", value: counts.COMPLETED, note: "Fluxo encerrado", href: "/operacoes" },
@@ -26,16 +41,16 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
   return <>
     <div className="page-heading">
       <div>
-        <p className="eyebrow">{isAdmin ? "Visão da equipe" : "Meu painel · Operador"}</p>
+        <p className="eyebrow">{isConsultant ? "Meu painel" : "Visão da equipe"} · {ROLE_LABELS[actor.role]}</p>
         <h1 className="page-title sm:text-4xl">Olá, {actor.name.split(" ")[0]}.</h1>
-        <p className="page-description">{isAdmin ? "Acompanhe as simulações e operações de toda a equipe." : "Suas simulações, suas operações e o próximo passo de cada atendimento."}</p>
+        <p className="page-description">{descriptions[actor.role]}</p>
       </div>
-      <Link href="/simulacoes" className="button-primary w-fit">Nova simulação<Icon name="arrow" width="17" height="17" /></Link>
+      {can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary w-fit">Nova simulação<Icon name="arrow" width="17" height="17" /></Link>}
     </div>
-    {acesso === "negado" && <div role="alert" className="notice notice-error mt-6"><Icon name="lock" />O gerenciamento de funcionários é exclusivo do administrador.</div>}
+    {acesso === "negado" && <div role="alert" className="notice notice-error mt-6"><Icon name="lock" />Seu perfil não tem permissão para acessar esta área.</div>}
     <section className="mt-8" aria-label="Resumo de atividades">
-      <p className="mb-4 text-xs text-muted">{isAdmin ? "Toda a equipe" : "Somente registros criados por você"} · {total} {total === 1 ? "operação" : "operações"} no total</p>
-      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <p className="mb-4 text-xs text-muted">{isConsultant ? "Somente registros criados por você" : "Toda a equipe"} · {total} {total === 1 ? "operação" : "operações"} no total</p>
+      <dl className={`grid grid-cols-2 gap-4 ${isConsultant ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {metrics.map((metric) => <div key={metric.label} className="surface-card min-w-0 p-5">
           <dt className="text-sm text-muted"><Link href={metric.href} className="hover:underline">{metric.label}</Link></dt>
           <dd className="mt-3 text-3xl font-semibold tabular-nums">{metric.value}</dd>
@@ -44,41 +59,38 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
       </dl>
     </section>
     <div className="mt-7 flex flex-wrap gap-3">
-      <Link href="/operacoes" className="button-secondary">{isAdmin ? "Ver operações" : "Minhas operações"}</Link>
-      <Link href="/simulacoes/historico" className="button-secondary">{isAdmin ? "Histórico de simulações" : "Minhas simulações"}</Link>
-      <Link href="/clientes/novo" className="button-secondary">Cadastrar cliente</Link>
-      {isAdmin && <Link href="/funcionarios" className="button-secondary">Gerenciar funcionários</Link>}
+      <Link href="/operacoes" className="button-secondary">{isConsultant ? "Minhas operações" : "Ver operações"}</Link>
+      {can(actor.role, "simulations:read") && <Link href="/simulacoes/historico" className="button-secondary">Minhas simulações</Link>}
+      {can(actor.role, "customers:create") && <Link href="/clientes/novo" className="button-secondary">Cadastrar cliente</Link>}
+      {can(actor.role, "employees:read") && <Link href="/funcionarios" className="button-secondary">Gerenciar funcionários</Link>}
     </div>
     <div className="mt-8 grid items-start gap-6 lg:grid-cols-[1fr_320px]">
       <div className="min-w-0 space-y-6">
         <section className="surface-card overflow-hidden">
-          <div className="border-b border-line p-6"><h2 className="text-sm font-semibold">{isAdmin ? "Operações recentes da equipe" : "Minhas operações recentes"}</h2></div>
-          {operations.length === 0 ? <div className="p-6 text-sm leading-6 text-muted">Nenhuma operação registrada ainda. Faça uma simulação, selecione o cliente e confirme os valores para começar.</div> :
+          <div className="border-b border-line p-6"><h2 className="text-sm font-semibold">{isConsultant ? "Minhas operações recentes" : "Operações recentes da equipe"}</h2></div>
+          {operations.length === 0 ? <div className="p-6 text-sm leading-6 text-muted">Nenhuma operação registrada neste escopo.</div> :
             <div className="divide-y divide-line">{operations.map((operation) => <article key={operation.id} className="flex flex-wrap items-center justify-between gap-4 p-6">
               <div className="min-w-0">
                 <Link href={`/operacoes/${operation.id}`} className="break-words text-sm font-semibold text-brand-ink underline">{operation.customer.name}</Link>
                 <p className="mt-2 break-words text-sm tabular-nums">{money(operation.sourceAmount, operation.sourceCurrency)} → {money(operation.targetAmount, operation.targetCurrency)}</p>
-                <p className="mt-2 text-xs text-muted">{dateTime(operation.createdAt)} · Brasília{isAdmin && ` · ${operation.createdBy.name}`}</p>
+                <p className="mt-2 text-xs text-muted">{dateTime(operation.createdAt)} · Brasília{!isConsultant && ` · ${operation.createdBy.name}`}</p>
               </div>
               <StatusBadge status={operation.status} />
             </article>)}</div>}
         </section>
-        <section className="surface-card overflow-hidden">
+        {can(actor.role, "simulations:read") && <section className="surface-card overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-6">
-            <h2 className="text-sm font-semibold">{isAdmin ? "Simulações recentes da equipe" : "Minhas simulações recentes"}</h2>
+            <h2 className="text-sm font-semibold">Minhas simulações recentes</h2>
             <Link href="/simulacoes/historico" className="text-xs font-semibold text-brand-ink underline">Ver histórico</Link>
           </div>
-          <SimulationHistory simulations={simulations} isAdmin={isAdmin} />
-        </section>
+          <SimulationHistory simulations={simulations} isAdmin={false} />
+        </section>}
       </div>
       <aside className="space-y-6">
         <section className="surface-card p-6">
           <h2 className="text-sm font-semibold">O que fazer agora</h2>
           <ol className="mt-5 space-y-5 text-sm leading-6 text-muted">
-            <li><strong className="text-ink">1. Simule a conversão.</strong> Escolha as moedas e o valor. Confira a taxa, a fonte e a data de referência.</li>
-            <li><strong className="text-ink">2. Revise e registre.</strong> Selecione o cliente e confirme antes do prazo de 15 minutos. Isso cria uma operação Pendente.</li>
-            <li><strong className="text-ink">3. Acompanhe a análise.</strong> Abra a operação e passe para Em análise após iniciar a conferência.</li>
-            <li><strong className="text-ink">4. Encerre o registro.</strong> Depois da análise, marque Concluída ou Cancelada. Estados finais não podem ser reabertos.</li>
+            {guidance[actor.role].map((step) => <li key={step}>{step}</li>)}
           </ol>
         </section>
         <section className="surface-card p-6">

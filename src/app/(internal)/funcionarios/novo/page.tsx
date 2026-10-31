@@ -33,17 +33,23 @@ export default async function NewEmployeePage() {
           <h2 className="text-sm font-semibold">Cada acesso tem seu papel.</h2>
           <dl className="mt-5 space-y-5 text-sm">
             <div>
-              <dt className="font-semibold">Operador</dt>
+              <dt className="font-semibold">Consultor de Câmbio</dt>
               <dd className="mt-1.5 text-sm leading-6 text-muted">
-                Cadastra clientes, simula conversões e acompanha operações e
-                histórico da equipe.
+                Cadastra clientes, simula conversões e registra e acompanha suas próprias operações.
               </dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Analista de Operações</dt>
+              <dd className="mt-1.5 text-sm leading-6 text-muted">Confere e conduz a análise das operações da equipe, preservando a separação de autoria.</dd>
+            </div>
+            <div>
+              <dt className="font-semibold">Gerente</dt>
+              <dd className="mt-1.5 text-sm leading-6 text-muted">Consulta registros e indicadores da equipe para supervisão.</dd>
             </div>
             <div>
               <dt className="font-semibold">Administrador</dt>
               <dd className="mt-1.5 text-sm leading-6 text-muted">
-                Tem as permissões do operador e também pode cadastrar e
-                consultar funcionários.
+                Cadastra e consulta funcionários. Consulta operações, sua auditoria e clientes vinculados para suporte.
               </dd>
             </div>
           </dl>

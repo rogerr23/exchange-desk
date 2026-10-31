@@ -6,9 +6,9 @@ import { listSimulations } from "@/server/services/simulations";
 
 export const metadata: Metadata = { title: "Histórico de simulações | ExchangeDesk" };
 export default async function SimulationHistoryPage() {
-  const actor = await requirePagePermission("quotes:simulate");
+  await requirePagePermission("simulations:read");
   const simulations = await listSimulations();
-  const isAdmin = actor.role === "ADMIN";
+  const isAdmin = false;
   return <>
     <div className="page-heading">
       <div>

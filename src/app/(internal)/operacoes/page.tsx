@@ -4,6 +4,7 @@ import { Icon } from "@/components/icon";
 import { StatusBadge } from "@/components/operations/status-badge";
 import { dateTime, money } from "@/lib/format";
 import { requirePagePermission } from "@/server/auth/page-access";
+import { can } from "@/domain/permissions";
 import { listOperations } from "@/server/services/operations";
 export const metadata: Metadata = { title: "Operações | ExchangeDesk" };
 export default async function OperationsPage() {
@@ -13,21 +14,21 @@ export default async function OperationsPage() {
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">{actor.role === "ADMIN" ? "Acompanhamento da equipe" : "Seu acompanhamento"}</p>
-          <h1 className="page-title">{actor.role === "ADMIN" ? "Operações" : "Minhas operações"}</h1>
+          <p className="eyebrow">{actor.role !== "CONSULTANT" ? "Acompanhamento da equipe" : "Seu acompanhamento"}</p>
+          <h1 className="page-title">{actor.role !== "CONSULTANT" ? "Operações" : "Minhas operações"}</h1>
           <p className="page-description">
-            {actor.role === "ADMIN" ? "Todas as conversões da equipe, do registro ao encerramento." : "Acompanhe as conversões que você registrou, do início ao encerramento."}
+            {actor.role !== "CONSULTANT" ? "Todas as conversões da equipe, do registro ao encerramento." : "Acompanhe as conversões que você registrou, do início ao encerramento."}
           </p>
         </div>
-        <Link href="/simulacoes" className="button-primary w-fit">
+        {can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary w-fit">
           <Icon name="plus" width="18" height="18" />
           Nova simulação
-        </Link>
+        </Link>}
       </div>
       <section className="surface-card mt-8 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-5">
           <h2 className="text-sm font-semibold">
-            {actor.role === "ADMIN" ? "Todas as operações" : "Operações registradas por você"}{" "}
+            {actor.role !== "CONSULTANT" ? "Todas as operações" : "Operações registradas por você"}{" "}
             <span className="ml-2 text-muted">{operations.length}</span>
           </h2>
           <span className="hidden text-xs text-muted sm:block">
@@ -43,15 +44,15 @@ export default async function OperationsPage() {
               className="mx-auto mb-4 text-muted"
             />
             <h2 className="font-semibold">
-              Pronto para sua primeira operação?
+              Nenhuma operação registrada.
             </h2>
             <p className="mt-2 text-sm text-muted">
-              Comece por uma simulação e confirme os valores para registrar.
+              {can(actor.role, "quotes:simulate") ? "Comece por uma simulação e confirme os valores para registrar." : "As operações da equipe aparecerão aqui quando forem registradas."}
             </p>
-            <Link href="/simulacoes" className="button-primary mt-6">
+            {can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary mt-6">
               Simular conversão
               <Icon name="arrow" width="17" height="17" />
-            </Link>
+            </Link>}
           </div>
         ) : (
           <div className="divide-y divide-line">
@@ -71,7 +72,7 @@ export default async function OperationsPage() {
                     </span>
                   </Link>
                   <p className="mt-1 text-xs text-muted">
-                    {dateTime(operation.createdAt)} · {actor.role === "ADMIN" && `${operation.createdBy.name} · `}{operation.sourceCurrency}{" "}
+                    {dateTime(operation.createdAt)} · {actor.role !== "CONSULTANT" && `${operation.createdBy.name} · `}{operation.sourceCurrency}{" "}
                     → {operation.targetCurrency}
                   </p>
                 </div>

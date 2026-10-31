@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
+import { operationScope } from "@/domain/permissions";
 import { canChangeStatus } from "@/domain/operation-status";
 import { createOperationSchema, changeOperationStatusSchema, operationIdSchema } from "@/schemas/operation";
 import { requirePermission } from "@/server/auth/authorize";
@@ -96,7 +97,7 @@ export async function createOperation(input: unknown) {
 export async function listOperations(limit?: number) {
   const actor = await requirePermission("operations:read");
   const operations = await getDb().exchangeOperation.findMany({
-    where: actor.role === "ADMIN" ? {} : { createdById: actor.id },
+    where: operationScope(actor),
     take: limit, select: operationSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
   return operations.map(serializeOperation);
@@ -104,7 +105,7 @@ export async function listOperations(limit?: number) {
 
 export async function getOperationSummary() {
   const actor = await requirePermission("operations:read");
-  const groups = await getDb().exchangeOperation.groupBy({ where: actor.role === "ADMIN" ? {} : { createdById: actor.id }, by: ["status"], _count: { _all: true } });
+  const groups = await getDb().exchangeOperation.groupBy({ where: operationScope(actor), by: ["status"], _count: { _all: true } });
   const counts = { PENDING: 0, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0 };
   for (const group of groups) counts[group.status] = group._count._all;
   return counts;
@@ -114,7 +115,7 @@ export async function getOperation(inputId: string) {
   const actor = await requirePermission("operations:read");
   await requirePermission("audit:read");
   const id = operationIdSchema.parse(inputId);
-  const operation = await getDb().exchangeOperation.findFirst({ where: { id, ...(actor.role === "ADMIN" ? {} : { createdById: actor.id }) }, select: detailSelect });
+  const operation = await getDb().exchangeOperation.findFirst({ where: { id, ...operationScope(actor) }, select: detailSelect });
   if (!operation) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
   return serializeOperation(operation);
 }
@@ -127,9 +128,12 @@ export async function changeOperationStatus(inputId: string, input: unknown) {
     throw new AppError(409, "INVALID_TRANSITION", "Essa mudança de status não é permitida.");
   }
   const operation = await getDb().$transaction(async (tx) => {
-    const scope = actor.role === "ADMIN" ? {} : { createdById: actor.id };
-    const current = await tx.exchangeOperation.findFirst({ where: { id, ...scope }, select: { status: true } });
+    const scope = operationScope(actor);
+    const current = await tx.exchangeOperation.findFirst({ where: { id, ...scope }, select: { status: true, createdById: true } });
     if (!current) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
+    if (current.createdById === actor.id) {
+      throw new AppError(403, "SELF_REVIEW_FORBIDDEN", "Você não pode conduzir a análise de uma operação que criou.");
+    }
     if (current.status !== expectedStatus) throw statusConflict();
     const updated = await tx.exchangeOperation.updateMany({
       where: { id, ...scope, status: expectedStatus }, data: { status },

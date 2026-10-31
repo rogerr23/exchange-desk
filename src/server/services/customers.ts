@@ -5,13 +5,18 @@ import { getDb } from "@/server/db/client";
 import { AppError } from "@/server/errors";
 
 export async function listCustomers() {
-  await requirePermission("customers:read");
-  return getDb().customer.findMany({ orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
+  const actor = await requirePermission("customers:read");
+  return getDb().customer.findMany({
+    where: actor.role === "ADMIN" ? { operations: { some: {} } } : {},
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  });
 }
 
 export async function getCustomer(id: string) {
-  await requirePermission("customers:read");
-  const customer = await getDb().customer.findUnique({ where: { id } });
+  const actor = await requirePermission("customers:read");
+  const customer = await getDb().customer.findFirst({
+    where: { id, ...(actor.role === "ADMIN" ? { operations: { some: {} } } : {}) },
+  });
   if (!customer) throw new AppError(404, "NOT_FOUND", "Cliente não encontrado.");
   return customer;
 }

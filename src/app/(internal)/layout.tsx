@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Brand, Icon } from "@/components/icon";
 import { AppNavigation } from "@/components/app-navigation";
-import { requirePagePermission } from "@/server/auth/page-access";
+import { requirePageActor } from "@/server/auth/page-access";
+import { ROLE_LABELS } from "@/domain/permissions";
 import { logoutAction } from "./actions";
 
 export default async function InternalLayout({
@@ -9,7 +10,7 @@ export default async function InternalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const actor = await requirePagePermission("customers:read");
+  const actor = await requirePageActor();
   return (
     <div className="min-h-screen">
       <header className="border-b border-chrome-ink/15 bg-chrome text-chrome-ink">
@@ -21,7 +22,7 @@ export default async function InternalLayout({
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-chrome-ink">{actor.name}</p>
               <p className="mt-0.5 text-xs text-chrome-ink">
-                {actor.role === "ADMIN" ? "Administrador" : "Operador"}
+                {ROLE_LABELS[actor.role]}
               </p>
             </div>
             <span
@@ -44,7 +45,7 @@ export default async function InternalLayout({
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-5 py-5 sm:px-8">
-        <AppNavigation isAdmin={actor.role === "ADMIN"} />
+        <AppNavigation role={actor.role} />
       </div>
       <main id="conteudo" className="mx-auto max-w-6xl px-5 pt-5 pb-16 sm:px-8">
         {children}
