@@ -48,8 +48,8 @@ export default async function NewEmployeePage() {
             </div>
           </dl>
           <p className="mt-6 border-t border-line pt-5 text-xs leading-6 text-muted">
-            Após o cadastro, entregue a senha diretamente ao funcionário. Use
-            acessos de estudo e dados fictícios.
+            Após o cadastro, entregue a senha diretamente ao funcionário por um
+            canal seguro. As credenciais são pessoais e intransferíveis.
           </p>
         </aside>
       </div>

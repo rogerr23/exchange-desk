@@ -1,6 +1,6 @@
 # API — ExchangeDesk V1
 
-Autenticação e cadastros estão disponíveis pelo servidor. Já existem telas de login, listagem e criação de funcionários; as demais telas de trabalho continuam para as próximas etapas. Use somente clientes e contatos fictícios.
+Autenticação e cadastros estão disponíveis pelo servidor. Já existem telas de login, listagem e criação de funcionários; as demais telas de trabalho continuam para as próximas etapas. Os exemplos abaixo usam dados de teste.
 
 ## Preparar o acesso
 
@@ -32,17 +32,17 @@ Todos os endpoints abaixo exigem sessão. Os serviços consultam o funcionário 
 | --- | --- | --- |
 | `GET /api/funcionarios` | Administrador | Lista com id, nome, e-mail e perfil |
 | `POST /api/funcionarios` | Administrador | Cria funcionário e retorna seus dados públicos |
-| `GET /api/clientes` | Administrador ou operador | Lista os clientes fictícios |
-| `POST /api/clientes` | Administrador ou operador | Cria cliente fictício |
+| `GET /api/clientes` | Administrador ou operador | Lista os clientes |
+| `POST /api/clientes` | Administrador ou operador | Cria cliente |
 | `GET /api/clientes/:id` | Administrador ou operador | Consulta um cliente; retorna 404 se não existir |
 
-As listagens retornam os registros do conjunto de estudo, em ordem de criação decrescente. Paginação não está implementada nesta etapa. Todas as respostas de cadastro usam `Cache-Control: no-store`.
+As listagens retornam os registros da equipe, em ordem de criação decrescente. Paginação não está implementada nesta etapa. Todas as respostas de cadastro usam `Cache-Control: no-store`.
 
 ### Cadastrar funcionário
 
-Envie JSON com `name`, `email`, `password` e, opcionalmente, `role` (`ADMIN` ou `OPERATOR`, padrão `OPERATOR`). O administrador escolhe a senha e a entrega manualmente para uso no projeto pessoal. E-mail normalizado é único; campos extras são recusados.
+Envie JSON com `name`, `email`, `password` e, opcionalmente, `role` (`ADMIN` ou `OPERATOR`, padrão `OPERATOR`). O administrador escolhe a senha e a entrega manualmente para acesso ao sistema. E-mail normalizado é único; campos extras são recusados.
 
-### Cadastrar cliente fictício
+### Cadastrar cliente
 
 Após entrar, este exemplo pode ser executado no console do navegador na página da aplicação:
 
@@ -51,7 +51,7 @@ const response = await fetch("/api/clientes", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    name: "Cliente de Demonstração",
+    name: "Cliente Exemplo",
     fictionalCpf: "000.000.000-00",
     email: "cliente@example.test",
     phone: "(11) 90000-0000",
@@ -60,7 +60,7 @@ const response = await fetch("/api/clientes", {
 console.log(response.status, await response.json());
 ```
 
-O servidor remove a máscara do CPF e do telefone e normaliza o e-mail. CPF fictício é único, mas não passa por validação de dígitos verificadores. E-mail e telefone de clientes não são únicos.
+O servidor remove a máscara do CPF e do telefone e normaliza o e-mail. CPF é único, mas não passa por validação de dígitos verificadores. E-mail e telefone de clientes não são únicos.
 
 ### Respostas
 
@@ -72,7 +72,7 @@ Sucesso: `{ "data": ... }`, com HTTP 200 em consultas e 201 em criações. Erros
 | 401 | Sessão ausente ou funcionário não encontrado |
 | 403 | Perfil sem permissão ou origem diferente da aplicação |
 | 404 | Cliente não encontrado |
-| 409 | E-mail de funcionário ou CPF fictício já cadastrado |
+| 409 | E-mail de funcionário ou CPF já cadastrado |
 | 415 | Corpo enviado sem `Content-Type: application/json` |
 | 500 | Falha interna com mensagem genérica, sem detalhes do banco |
 

@@ -30,7 +30,7 @@ export async function respond(action: () => Promise<Response>): Promise<Response
       code: "VALIDATION_ERROR", message: "Confira os campos informados.", fields: z.flattenError(error).fieldErrors,
     } }, 400);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return json({ error: { code: "CONFLICT", message: "Já existe um cadastro com esse e-mail ou CPF fictício." } }, 409);
+      return json({ error: { code: "CONFLICT", message: "Já existe um cadastro com esse e-mail ou CPF." } }, 409);
     }
     // Não registrar payloads ou mensagens do Prisma que possam conter credenciais.
     console.error("Falha ao processar requisição:", error instanceof Error ? error.name : "erro desconhecido");

@@ -16,7 +16,7 @@ beforeEach(() => {
 
 function credentials(
   email = "admin@example.test",
-  password = "senha fictícia de estudo",
+  password = "senha exclusiva de teste",
 ) {
   const form = new FormData();
   form.set("email", email);
@@ -38,7 +38,7 @@ it("retorna erro compreensível sem guardar senha no estado do formulário", asy
   );
   expect(result.error).toContain("E-mail ou senha incorretos");
   expect(result.email).toBe("admin@example.test");
-  expect(JSON.stringify(result)).not.toContain("senha fictícia de estudo");
+  expect(JSON.stringify(result)).not.toContain("senha exclusiva de teste");
 });
 
 it("preserva o redirecionamento de sucesso do Next.js", async () => {

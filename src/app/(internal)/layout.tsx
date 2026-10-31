@@ -50,7 +50,7 @@ export default async function InternalLayout({
         {children}
       </main>
       <footer className="mx-auto max-w-6xl border-t border-line px-5 py-6 text-xs text-muted sm:px-8">
-        ExchangeDesk · Ambiente de estudo com dados fictícios.
+        ExchangeDesk · Gestão de operações de câmbio.
       </footer>
     </div>
   );

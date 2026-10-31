@@ -1,14 +1,14 @@
 # ExchangeDesk V1
 
-Projeto pessoal de estudo e portfólio: um sistema web demonstrativo para uma equipe simular conversões de moedas, cadastrar clientes fictícios e acompanhar operações de câmbio com histórico de status.
+Sistema de gestão de operações de câmbio para equipes, com cadastro de clientes, simulações de conversão e acompanhamento de operações com histórico de status.
 
-O projeto usa Next.js Full Stack com TypeScript. A V1 não movimenta dinheiro nem executa câmbio real. As cotações são dados reais de referência obtidos de uma API pública.
+A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo interno das operações, sem executar pagamentos ou liquidação financeira. As cotações são dados reais de referência obtidos de uma API pública.
 
 ## Escopo da V1
 
 - Login com os perfis administrador e operador.
 - Cadastro de funcionários exclusivamente pelo administrador, sem cadastro público.
-- Cadastro de clientes com nome, CPF fictício, e-mail e telefone.
+- Cadastro de clientes com nome, CPF, e-mail e telefone.
 - Moedas disponíveis: BRL, USD e EUR.
 - Consulta de cotações em uma API pública.
 - Simulações de conversão entre moedas diferentes.
@@ -32,14 +32,14 @@ O projeto usa Next.js Full Stack com TypeScript. A V1 não movimenta dinheiro ne
 ## Fluxo principal
 
 1. Um funcionário entra no sistema.
-2. Cadastra ou seleciona um cliente fictício.
+2. Cadastra ou seleciona um cliente.
 3. Escolhe as moedas e informa o valor de origem.
 4. Consulta a cotação e visualiza a simulação, a fonte e o horário da referência.
 5. Confirma o registro da operação como **Pendente**, preservando os valores e a cotação apresentados.
 6. A operação passa para **Em análise** e depois para **Concluída** ou **Cancelada**.
 7. Cada alteração de status fica registrada na auditoria.
 
-O registro da operação representa um fluxo interno demonstrativo; o status Concluída não comprova pagamento ou liquidação financeira.
+O status Concluída indica o encerramento do fluxo interno da operação; pagamentos e liquidação financeira são externos ao sistema.
 
 ## Execução local
 
@@ -99,9 +99,11 @@ Acesse `/login` para entrar. Após o login, `/inicio` apresenta o espaço da equ
 
 O schema define funcionários, clientes, operações e auditoria. A migração inicial foi aplicada e validada no PostgreSQL local e no banco de testes. Em um novo ambiente, use `db:deploy` para aplicar as migrações existentes. Para novas alterações do schema, use `db:migrate`. O bootstrap é exclusivo do comando local; os demais funcionários são cadastrados por administrador autenticado.
 
-Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve as variáveis locais, de autenticação, bootstrap e testes. As opções de cotações serão definidas na etapa 4. Auth.js está fixado em `next-auth@5.0.0-beta.32`, versão beta indicada pela documentação oficial para a integração v5; Argon2 usa `@node-rs/argon2`.
+Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve as variáveis locais, de autenticação, bootstrap e testes. As políticas de cotações e simulação estão definidas na arquitetura e serão implementadas na etapa 4. Auth.js está fixado em `next-auth@5.0.0-beta.32`, versão beta indicada pela documentação oficial para a integração v5; Argon2 usa `@node-rs/argon2`.
 
 ### Validação da base
+
+A política de testes é enxuta: proteger regras relevantes e falhas concretas, sem meta de cobertura, teste por componente ou duplicação entre camadas. Integração roda separadamente; telas são verificadas manualmente. Alterações apenas de documentação não exigem a suíte da aplicação. Detalhes em [ARCHITECTURE.md](./docs/ARCHITECTURE.md#8-interface-e-testes).
 
 Lint, tipos, schema Prisma e build foram verificados. Os testes incluem autorização no servidor, validações, bootstrap repetido e concorrente, hash Argon2id, cadastros e o fluxo HTTP real de login, cookies, permissões e logout.
 
@@ -120,7 +122,7 @@ O `npm audit` identificou cinco alertas de severidade alta na cadeia de desenvol
 
 ## Fora do escopo
 
-- Clientes, documentos e operações financeiras reais.
+- Validação documental e liquidação financeira das operações.
 - Pagamentos, transferências, contas bancárias, carteiras ou saldos.
 - IOF, spread, tarifas, comissões e regras de compliance financeiro.
 - Integração com corretoras ou execução de ordens.
@@ -135,12 +137,13 @@ Valores com duas casas decimais e taxas com oito. Cálculos com aritmética deci
 
 Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. Login, logout, bootstrap e serviços de cadastros já estão implementados.
 
-Administrador e operador acessam os clientes, operações e auditoria da mesma equipe; apenas o administrador cadastra e lista funcionários. Os cadastros de clientes usam dados fictícios, sem consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
+Administrador e operador acessam os clientes, operações e auditoria da mesma equipe; apenas o administrador cadastra e lista funcionários. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
 
-## Decisões técnicas pendentes
+## Próxima entrega e decisões pendentes
 
-- Cache e prazo de validade das cotações e da simulação antes da confirmação.
-- Conteúdo mínimo dos gráficos e ambiente de publicação.
+A etapa 4 implementará cotações e simulação: timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está definida em [ARCHITECTURE.md](./docs/ARCHITECTURE.md); a funcionalidade ainda não foi implementada.
+
+Permanecem pendentes o conteúdo mínimo dos gráficos e o ambiente de publicação.
 
 Essas pendências não alteram o escopo funcional fechado. Devem ser resolvidas antes da implementação das partes correspondentes; as propostas estão em [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 

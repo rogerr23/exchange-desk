@@ -67,7 +67,7 @@ export default async function LoginPage({
         </div>
         <p className="relative z-10 flex items-center gap-2 text-xs text-chrome-ink">
           <span className="size-1.5 rounded-full bg-positive" />
-          Projeto de estudo · Operações demonstrativas
+          Gestão de operações de câmbio
         </p>
       </section>
       <section className="flex flex-col justify-between px-7 py-8 sm:px-12 lg:px-16 lg:py-10">
@@ -100,7 +100,7 @@ export default async function LoginPage({
           </div>
         </div>
         <p className="text-center text-[11px] leading-5 text-muted">
-          Somente dados fictícios. Nenhuma movimentação financeira real.
+          Acesso restrito a funcionários autorizados.
         </p>
       </section>
     </main>

@@ -4,7 +4,7 @@
 
 A V1 será uma aplicação Next.js Full Stack com TypeScript, PostgreSQL e Prisma. Interface e lógica de servidor ficarão no mesmo projeto, sem necessidade de um backend separado.
 
-A stack, a organização de pastas, o modelo inicial e as decisões de acesso estão definidos para o escopo de [REQUIREMENTS.md](./REQUIREMENTS.md). As pendências restantes estão indicadas neste documento. O projeto prioriza uma implementação compreensível para estudo e portfólio, com dados fictícios e uma única equipe.
+A stack, a organização de pastas, o modelo inicial e as decisões de acesso estão definidos para o escopo de [REQUIREMENTS.md](./REQUIREMENTS.md). As pendências restantes estão indicadas neste documento. A aplicação centraliza os fluxos operacionais de uma única equipe, com autorização no servidor, validação de dados e rastreabilidade das operações.
 
 ```text
 Navegador
@@ -97,7 +97,7 @@ Não existe entidade de cliente autenticável. Não disponibilizar rota pública
 
 - `id`, `name`, `fictionalCpf`, `email`, `phone`, `createdAt`.
 - CPF e telefone armazenados como texto para preservar zeros e formatação.
-- CPF fictício único, com 11 dígitos, sem validar dígitos verificadores; remover máscara e preservar zeros.
+- CPF único, com 11 dígitos, sem validar dígitos verificadores; remover máscara e preservar zeros.
 - Nome com 2 a 100 caracteres; e-mail válido com até 254 caracteres em minúsculas; telefone com DDD e 10 ou 11 dígitos, sem código de país.
 - E-mail e telefone do cliente não são únicos. Remover espaços nas extremidades dos textos e máscaras do CPF/telefone no schema Zod.
 
@@ -120,7 +120,7 @@ Os valores e a referência de cotação formam um retrato da simulação confirm
 - Validar o valor de origem positivo e com no máximo duas casas; recusar excesso de casas em vez de alterar silenciosamente a entrada.
 - Usar aritmética decimal no servidor. Normalizar a taxa final origem → destino para oito casas com `ROUND_HALF_UP` (metade para cima) antes de multiplicar. Se houver inversão ou composição, manter a precisão intermediária e normalizar apenas a taxa final.
 - Multiplicar o valor de origem pela taxa normalizada e arredondar o resultado uma única vez para duas casas, também com `ROUND_HALF_UP`.
-- Exemplo fictício: `100,00 × 5,12345678 = 512,345678`, resultando em `512,35`. No empate, `1,005` resulta em `1,01`.
+- Exemplo de cálculo: `100,00 × 5,12345678 = 512,345678`, resultando em `512,35`. No empate, `1,005` resulta em `1,01`.
 - A simulação deve usar a mesma taxa e o mesmo resultado que serão persistidos. Não recalcular no navegador nem usar uma taxa oculta com mais casas.
 - Transportar valores monetários e taxas da API interna como strings decimais; formatar em português apenas para exibição.
 - Recusar valores fora da capacidade das colunas e resultados que arredondem para zero, com mensagem clara. Esses são limites técnicos, sem introduzir limites comerciais.
@@ -151,10 +151,12 @@ Conversão: `valorDestino = valorOrigem × taxa`. Não adicionar impostos, tarif
 
 1. Validar sessão, autorização, cliente e os dados da simulação no servidor.
 2. Recuperar ou verificar a referência de cotação confiável usada na simulação; não aceitar taxa e resultado arbitrários enviados pelo navegador.
-3. Aplicar a política de validade da referência, que ainda será definida. Se houver necessidade de nova cotação, reapresentar o resultado antes da confirmação.
+3. Verificar a assinatura e a validade de 15 minutos da simulação. Se expirar, exigir nova simulação e reapresentar o resultado antes da confirmação.
 4. Em uma transação do Prisma, criar a operação Pendente e seu evento inicial de auditoria.
 
-A forma de preservar a simulação entre essas etapas está pendente: por exemplo, uma referência armazenada no servidor ou um conteúdo verificável pelo servidor. O requisito é registrar exatamente o resultado confirmado pelo usuário.
+A simulação será devolvida em um token assinado com HMAC-SHA256 no servidor, usando uma chave derivada de `AUTH_SECRET` com contexto exclusivo para simulações. O conteúdo inclui versão, funcionário, moedas, valores decimais, taxa, fonte, data de referência, horário de consulta, emissão e expiração. Usar `node:crypto`, sem nova dependência ou tabela de simulações. O token garante integridade, não sigilo, e não deve conter dados cadastrais de clientes.
+
+Na confirmação, validar formato, assinatura com comparação em tempo constante, funcionário da sessão e expiração; validar também o cliente selecionado e recalcular o resultado a partir dos valores assinados como verificação de consistência. Persistir exatamente a taxa e os valores apresentados, sem consultar outra cotação. A validade começa na emissão da simulação; a idade do cache é uma informação separada. Uma simulação ainda válida pode ser confirmada mesmo se o provedor estiver indisponível. Esse token não oferece uso único ou idempotência; esse mecanismo adicional fica fora desta entrega.
 
 ### Alterar status
 
@@ -175,9 +177,17 @@ O provedor escolhido é [Frankfurter v2](https://frankfurter.dev/), pela rota p�
 
 Na avaliação do provedor, as três bases BRL, USD e EUR retornaram os dois destinos esperados, cobrindo os seis pares. Cada item retornou `date`, `base`, `quote` e `rate`. Isso orientou o campo `quoteReferenceDate`; o teste manual da API não substitui os testes de normalização e falhas que acompanharão o adaptador. A interface deve atribuir a fonte como Frankfurter / ECB e identificar os valores como referência diária.
 
-Definir tempo limite para chamadas e tratar falhas, respostas inválidas e pares indisponíveis. Na ausência de uma referência válida conforme a política definida, bloquear a confirmação e explicar a indisponibilidade. Não usar taxa fictícia como alternativa em uso normal. Testes podem usar respostas simuladas, claramente separadas da integração real.
+### Política definida para a etapa 4
 
-Cache, duração da referência e limites de consulta são decisões pendentes, dependentes do provedor.
+- Timeout de **5 segundos** por chamada, sem repetição automática. O usuário pode tentar novamente após uma falha.
+- Cache em memória do processo por **15 minutos**, por par de moedas, apenas para respostas válidas. No máximo seis entradas, correspondentes aos seis pares permitidos. Reiniciar o processo apenas esvazia o cache; instâncias diferentes podem consultar separadamente. Não adicionar Redis ou tabela de cotações na V1.
+- Preservar o horário da consulta original ao reutilizar o cache. Cache expirado exige nova consulta; falhas não renovam o prazo nem autorizam usar uma entrada vencida.
+- Validar os campos relevantes: moedas correspondentes ao pedido, taxa positiva e finita, data válida e não futura. Aplicar a política decimal após essa validação e recusar taxas ou resultados fora da capacidade definida. Os valores internos e de saída são strings decimais.
+- Aceitar a última data diária retornada pelo provedor, inclusive uma data anterior ao dia da consulta. O cache mede o tempo desde a consulta, não a idade da observação diária. Mostrar sempre a data de referência e o horário de consulta separadamente.
+- Em timeout, erro HTTP, resposta inválida ou par ausente, informar indisponibilidade e impedir uma nova simulação. Não usar taxa fictícia como alternativa. Uma simulação assinada já emitida continua válida até sua expiração.
+- Consultar somente mediante solicitação autenticada de simulação, reutilizando o cache enquanto válido. Sem atualização em segundo plano, polling, limitador distribuído ou infraestrutura adicional nesta etapa.
+
+A entrada será `POST /api/simulacoes`, com moedas e valor de origem como string decimal. O serviço verifica `quotes:simulate`, valida a entrada e retorna o resultado, a referência, `expiresAt` e o token de confirmação. A resposta HTTP usa `Cache-Control: no-store`; o cache de cotações fica exclusivamente no servidor. A criação da operação e o consumo desse token pertencem à etapa 5. Não é necessário criar um endpoint separado de cotações para esta entrega.
 
 ## 7. Autenticação e autorização
 
@@ -191,7 +201,7 @@ Auth.js cuida da autenticação e sessão; a aplicação continuará responsáve
 - Sessão JWT em cookie gerenciado pelo Auth.js, com `maxAge` de oito horas e renovação padrão da biblioteca, sem um mecanismo próprio de sessões. O perfil é obtido de dados confiáveis no servidor. Logout remove o cookie da sessão no navegador; revogação central de tokens e gestão de dispositivos ficam fora da V1.
 - Sem adaptador de persistência do Auth.js para essa configuração: o próprio serviço lê e cadastra usuários via Prisma. Não criar tabelas OAuth ou sessões persistidas sem necessidade.
 - Primeiro administrador por comando local de bootstrap, recebendo nome, e-mail e senha pelo ambiente. Exigir os campos explicitamente, validar, produzir o hash, recusar se já houver administrador e nunca atualizar um usuário existente nem imprimir a senha/hash. A rotina está em `src/server/auth/bootstrap.ts` e é executada por `npm run admin:create`; uma trava transacional no PostgreSQL serializa execuções concorrentes.
-- Funcionários posteriores são cadastrados pelo administrador autenticado, que define e entrega manualmente a senha para uso de estudo. Sem cadastro público, login social, MFA, fluxo de convite ou recuperação por e-mail.
+- Funcionários posteriores são cadastrados pelo administrador autenticado, que define e entrega manualmente a senha para acesso ao sistema. Sem cadastro público, login social, MFA, fluxo de convite ou recuperação por e-mail.
 - Dados de autorização enviados pelo cliente nunca substituem a sessão. A função de domínio `can` expressa a matriz, mas não autentica ninguém: as entradas chamam serviços que obtêm a sessão e aplicam a política no servidor. O guarda também consulta o usuário no banco para obter seu perfil atual.
 
 A matriz completa está em [REQUIREMENTS.md](./REQUIREMENTS.md). Login, cookies, verificação de senha, bootstrap e cadastros estão implementados. A configuração usa `next-auth@5.0.0-beta.32`, conforme a [instalação oficial do Auth.js v5](https://authjs.dev/getting-started/installation). Os endpoints são Route Handlers finos em `src/app/api`. As telas de login e saída usam Server Actions do Auth.js; o formulário visual de funcionários usa a API existente. As páginas internas também verificam o acesso no servidor, além da autorização dos serviços. O uso da API está em [API.md](./API.md).
@@ -200,14 +210,19 @@ A matriz completa está em [REQUIREMENTS.md](./REQUIREMENTS.md). Login, cookies,
 
 Tailwind CSS será usado na interface. Recharts será usado em uma visualização simples cujo conteúdo ainda será confirmado; a proposta é contar operações por status. Não é necessário contratar ou persistir séries históricas de mercado para essa finalidade.
 
-Usar Vitest apenas para os comportamentos essenciais abaixo, ao implementar cada fluxo. Não exigir cobertura total, testes de detalhes visuais ou de comportamentos internos das bibliotecas:
+Usar Vitest apenas para os comportamentos essenciais abaixo, ao implementar cada fluxo. Sem meta de cobertura ou quantidade de testes. Um teste deve proteger uma regra relevante ou uma falha concreta; não criar um teste por arquivo, função ou componente:
 
 - Fórmula de conversão, precisão e arredondamento definidos.
 - Validação de moedas, valores e campos de cadastro.
 - Todas as transições permitidas e recusadas.
 - Bloqueio de cadastro de funcionários por operador e de ações sem sessão.
-- Normalização da cotação e tratamento de falhas do provedor.
+- Normalização da cotação e tratamento de falhas do provedor, com casos representativos e respostas simuladas.
+- Expiração do cache e recusa de token adulterado, expirado ou pertencente a outro funcionário.
 - Integridade da transação e tratamento de concorrência, com banco de teste isolado.
+
+Não duplicar a mesma regra em testes unitários, de serviço e HTTP sem uma diferença de risco. Não testar getters, encaminhamento de chamadas, classes CSS, renderização estática ou detalhes internos de Prisma, Auth.js e Zod. Os seis pares podem usar um teste parametrizado; não multiplicar a suíte por todas as combinações de moedas, valores e erros.
+
+Durante o desenvolvimento, executar os testes relacionados à mudança. Executar a suíte unitária completa, lint e tipos ao fechar uma entrega de código; build e integração quando a mudança afetar os respectivos fluxos ou antes de publicar. Integrações PostgreSQL ficam em comando separado e concentradas em persistência, transações e concorrência. A API externa real será conferida manualmente ao implementar o adaptador; os testes automatizados não dependem da rede. Alterações apenas de documentação exigem revisão do diff e consistência, sem rodar a suíte da aplicação.
 
 Já existem testes unitários das regras e guardas, testes de integração dos cadastros com PostgreSQL e teste HTTP real de autenticação e permissões. A integração usa um banco separado com nome terminado em `_test`. A verificação manual das telas de trabalho em computador e celular acompanhará a etapa 6; o fluxo de câmbio completo continua pendente.
 
@@ -216,9 +231,8 @@ Já existem testes unitários das regras e guardas, testes de integração dos c
 | Tema | Decisão a registrar |
 | --- | --- |
 | Ambiente | Base definida: Node.js 22.14.0, npm 11.6.2 e PostgreSQL 17; versões e scripts em `package.json` |
-| API de cotações | Normalização, timeout, limites, cache e validade; Frankfurter/ECB e os pares já definidos |
-| Simulação | Como preservar e verificar a referência até a confirmação |
-| Entradas de servidor | Uso de Server Actions e Route Handlers por fluxo |
+| Cotações e simulação | Definidas nas seções 5 e 6; implementação pendente |
+| Entradas de servidor | Simulação por Route Handler definida; entradas dos demais fluxos serão escolhidas ao implementá-los |
 | Gráficos | Conteúdo mínimo com Recharts |
 | Publicação | Hospedagem, PostgreSQL, variáveis e aplicação das migrações |
 

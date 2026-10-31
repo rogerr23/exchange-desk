@@ -9,7 +9,7 @@ const customer = {
   phone: "(11) 90000-0000",
 };
 
-describe("cadastros fictícios", () => {
+describe("validação de cadastros", () => {
   it("normaliza os contatos e preserva zeros do CPF sem exigir dígitos verificadores", () => {
     expect(createCustomerSchema.parse(customer)).toEqual({
       name: "Cliente de Teste",
@@ -35,7 +35,7 @@ describe("cadastros fictícios", () => {
 });
 
 describe("credenciais de funcionários", () => {
-  const user = { name: "Operador Teste", email: " OPERADOR@EXAMPLE.TEST ", password: "uma senha de estudo" };
+  const user = { name: "Operador Teste", email: " OPERADOR@EXAMPLE.TEST ", password: "uma senha de teste" };
 
   it("usa operador como perfil padrão e normaliza o e-mail", () => {
     const result = createUserSchema.parse(user);

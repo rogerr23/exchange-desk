@@ -2,9 +2,9 @@
 
 ## 1. Objetivo e limites
 
-Permitir que uma equipe cadastre clientes fictícios, simule conversões e acompanhe operações demonstrativas com auditoria. O sistema não executa transações financeiras reais.
+Centralizar o cadastro de clientes, as simulações de conversão e o acompanhamento de operações de câmbio da equipe, com histórico e auditoria. Pagamentos e liquidação financeira não são executados pelo sistema.
 
-Este é um projeto pessoal de estudo e portfólio, voltado a demonstrar organização, regras de negócio e testes essenciais. Os cadastros devem usar dados fictícios; não há objetivo de operar um serviço financeiro comercial.
+O ExchangeDesk é uma aplicação de gestão interna, com acesso restrito a funcionários e permissões por perfil. A V1 contempla os fluxos e limites descritos neste documento.
 
 Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como proposta ou pendência não devem ser tratados como decisões já aprovadas.
 
@@ -14,14 +14,14 @@ Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como propo
 | --- | --- |
 | Administrador | Acessar o sistema e cadastrar funcionários |
 | Operador | Acessar o sistema para trabalhar nos fluxos operacionais |
-| Cliente fictício | Ser vinculado às operações; não possui login |
+| Cliente | Ser vinculado às operações; não possui login |
 
 A V1 representa uma única equipe, sem separação por empresa ou por carteira de clientes.
 
 | Ação | Administrador | Operador |
 | --- | --- | --- |
 | Cadastrar e listar funcionários | Sim | Não |
-| Cadastrar e consultar clientes fictícios | Sim | Sim |
+| Cadastrar e consultar clientes | Sim | Sim |
 | Simular conversões | Sim | Sim |
 | Criar e consultar operações de toda a equipe | Sim | Sim |
 | Alterar status de qualquer operação, respeitando o fluxo | Sim | Sim |
@@ -50,22 +50,22 @@ O login usa e-mail e senha pelo provider Credentials do Auth.js. A sessão usa J
 - Normalizar o e-mail para minúsculas, remover espaços nas extremidades e exigir unicidade.
 - Aceitar senhas entre 12 e 128 caracteres, sem regras de composição e sem remover espaços da senha.
 - Criar o primeiro administrador por um comando local controlado, com nome, e-mail e senha fornecidos pelo ambiente, sem credenciais fixas. O comando deve recusar execução se já existir um administrador, sem sobrescrever usuários.
-- O administrador define a senha ao cadastrar um funcionário e a entrega manualmente para uso no projeto pessoal; não há envio de e-mail nem convite público.
+- O administrador define a senha ao cadastrar um funcionário e a entrega manualmente para acesso ao sistema; não há envio de e-mail nem convite público.
 
 **Aceite:** o administrador consegue cadastrar um funcionário válido; uma tentativa de cadastro feita por operador é recusada no servidor, mesmo por acesso direto.
 
 Edição, desativação, recuperação de acesso e gestão de sessões não foram fechadas e não são exigências adicionais da V1 neste documento.
 
-### RF03 — Clientes fictícios
+### RF03 — Clientes
 
-- Cadastrar e consultar clientes com nome, CPF fictício, e-mail e telefone.
-- Identificar na interface que os dados são fictícios.
+- Cadastrar e consultar clientes com nome, CPF, e-mail e telefone.
+- Apresentar os dados cadastrais de forma clara para consulta e seleção do cliente.
 - Validar os campos no servidor com Zod.
 - Permitir selecionar um cliente para registrar uma operação.
 
 **Aceite:** dados obrigatórios ausentes ou inválidos são recusados; um cliente cadastrado pode ser consultado e vinculado a uma operação.
 
-Não há consulta de CPF nem validação dos seus dígitos verificadores. O CPF fictício é um identificador de 11 dígitos único no cadastro: aceitar máscara, removê-la antes de salvar e preservar zeros à esquerda. Nome: 2 a 100 caracteres após remover espaços nas extremidades. E-mail: formato válido, até 254 caracteres, em minúsculas; não é único entre clientes. Telefone fictício: 10 ou 11 dígitos com DDD, sem código de país; aceitar máscara e salvar apenas dígitos, sem unicidade. Os campos são obrigatórios. Usar contatos de exemplo nos dados de demonstração. Edição e exclusão de clientes não estão fechadas.
+Não há consulta de CPF nem validação dos seus dígitos verificadores. O CPF é um identificador de 11 dígitos único no cadastro: aceitar máscara, removê-la antes de salvar e preservar zeros à esquerda. Nome: 2 a 100 caracteres após remover espaços nas extremidades. E-mail: formato válido, até 254 caracteres, em minúsculas; não é único entre clientes. Telefone: 10 ou 11 dígitos com DDD, sem código de país; aceitar máscara e salvar apenas dígitos, sem unicidade. Os campos são obrigatórios. Usar contatos de exemplo nos ambientes de desenvolvimento e teste. Edição e exclusão de clientes não estão fechadas.
 
 ### RF04 — Cotações
 
@@ -76,7 +76,7 @@ Não há consulta de CPF nem validação dos seus dígitos verificadores. O CPF 
 
 **Aceite:** uma resposta válida da API pode alimentar a simulação; falhas geram uma mensagem compreensível; o usuário consegue identificar a referência utilizada.
 
-O provedor escolhido é Frankfurter v2, consultando a fonte ECB para os seis pares direcionais entre BRL, USD e EUR. As taxas são referências diárias, sem atualização em tempo real. Cache e validade para confirmar uma simulação serão definidos na etapa 4. A data de referência diária deve aparecer separada do horário de consulta; uma data sem hora não deve virar um horário de mercado inventado. Se a API não informar o horário da cotação, mostrar o horário de consulta com esse rótulo, sem apresentá-lo como horário de mercado.
+O provedor escolhido é Frankfurter v2, consultando a fonte ECB para os seis pares direcionais entre BRL, USD e EUR. As taxas são referências diárias, sem atualização em tempo real. O cache de cotações será de 15 minutos em memória, com timeout de consulta de 5 segundos e sem repetição automática. A simulação terá validade própria de 15 minutos, com conteúdo assinado pelo servidor conforme ARCHITECTURE.md. A data de referência diária deve aparecer separada do horário de consulta; uma data sem hora não deve virar um horário de mercado inventado. Se a API não informar o horário da cotação, mostrar o horário de consulta com esse rótulo, sem apresentá-lo como horário de mercado.
 
 ### RF05 — Simulações
 
@@ -89,7 +89,7 @@ O provedor escolhido é Frankfurter v2, consultando a fonte ECB para os seis par
 
 **Aceite:** o resultado corresponde à fórmula e à política decimal definida em ARCHITECTURE.md; entradas inválidas são recusadas; uma simulação isolada não aparece como operação.
 
-Não é obrigatório persistir um histórico de simulações independentes.
+Não é obrigatório persistir um histórico de simulações independentes. A referência assinada deve preservar os valores apresentados; assinatura inválida, expiração ou funcionário diferente impedem a confirmação. Uma simulação expirada exige nova simulação e nova confirmação do resultado.
 
 ### RF06 — Operações
 
@@ -130,7 +130,7 @@ Auditoria completa de login e de todas as alterações cadastrais não faz parte
 - Usar `Decimal(18,2)` para valores e `Decimal(18,8)` para taxas, com aritmética decimal e `ROUND_HALF_UP`, conforme ARCHITECTURE.md. Valores de entrada aceitam até duas casas; o resultado é arredondado para duas casas após a multiplicação pela taxa normalizada.
 - Exibir estados de carregamento, ausência de dados, erro e sucesso em português do Brasil.
 - Permitir uso em telas de computador e celular, com campos rotulados e navegação por teclado.
-- Cobrir com Vitest conversão, transições de status, validações, autorização e tratamento de respostas do provedor.
+- Manter testes essenciais com Vitest para conversão, transições de status, validações, autorização, falhas do provedor e integridade/expiração da referência de simulação. Sem meta de cobertura, teste por componente ou repetição da mesma regra em várias camadas; a política de execução está em ARCHITECTURE.md.
 - Verificar a transação de operação/auditoria e conflitos de atualização em testes de integração com banco de teste.
 
 Recharts está definido na stack. **Proposta a confirmar:** um resumo de quantidade de operações por status usando os próprios dados do sistema, sem criar um requisito de histórico de mercado.
@@ -139,10 +139,10 @@ Recharts está definido na stack. **Proposta a confirmar:** um resumo de quantid
 
 | Decisão | O que falta definir |
 | --- | --- |
-| Cotações | Normalização do adaptador, prazo de validade, cache, timeout e falhas; provedor e pares definidos |
+| Cotações e simulações | Decisões definidas em ARCHITECTURE.md; implementação na etapa 4 |
 | Interface | Conteúdo mínimo do resumo com Recharts |
 | Ambiente | Hospedagem e variáveis das integrações; base local e scripts definidos no README |
 
 ## 6. Critério de conclusão da V1
 
-A V1 estará concluída quando as pendências necessárias estiverem resolvidas e registradas, os critérios de aceite forem atendidos e o fluxo completo funcionar: login → cliente fictício → cotação → simulação → operação Pendente → Em análise → Concluída ou Cancelada, com auditoria consistente. O cadastro de funcionários deve permanecer exclusivo do administrador.
+A V1 estará concluída quando as pendências necessárias estiverem resolvidas e registradas, os critérios de aceite forem atendidos e o fluxo completo funcionar: login → cliente → cotação → simulação → operação Pendente → Em análise → Concluída ou Cancelada, com auditoria consistente. O cadastro de funcionários deve permanecer exclusivo do administrador.
