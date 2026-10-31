@@ -248,3 +248,48 @@ a:focus-visible {
     transition: none !important;
   }
 }
+
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  justify-content: space-between;
+}
+.page-title {
+  margin-top: 12px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+.page-description {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+}
+.detail-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.detail-value {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 640px) {
+  .page-heading {
+    flex-direction: row;
+    align-items: end;
+  }
+}
+@media (max-width: 639px) {
+  .field-input {
+    font-size: 16px;
+  }
+}

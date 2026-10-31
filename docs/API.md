@@ -1,6 +1,6 @@
 # API — ExchangeDesk V1
 
-Autenticação, cadastros e simulações estão disponíveis pelo servidor. Já existem telas de login, listagem e criação de funcionários; as demais telas de trabalho continuam para as próximas etapas. Os exemplos abaixo usam dados de teste.
+Autenticação, cadastros, simulações e operações com auditoria estão disponíveis pelo servidor. As telas de login, funcionários, clientes, simulações e operações utilizam os serviços e endpoints abaixo. Os exemplos abaixo usam dados de teste.
 
 ## Preparar o acesso
 
@@ -109,8 +109,46 @@ Sucesso retorna HTTP 200 com `{ data: ... }` e `Cache-Control: no-store`. O cont
 | `quoteFetchedAt` | Instante original da consulta, preservado ao reutilizar o cache |
 | `quoteTimestamp`, `quoteTimestampKind` | Instante da consulta e rótulo `FETCHED_AT`; não representa horário de mercado |
 | `issuedAt`, `expiresAt` | Emissão da simulação e expiração após 15 minutos |
-| `simulationToken` | Referência assinada vinculada ao funcionário; guardar para a futura confirmação |
+| `simulationToken` | Referência assinada vinculada ao funcionário; enviar na confirmação de operação |
 
 O cache de cotações dura 15 minutos por par, em memória do processo. Consultas externas têm timeout de 5 segundos, sem repetição automática. Erros de rede, timeout, HTTP do provedor ou resposta inválida retornam HTTP 503 com código `QUOTE_UNAVAILABLE` e mensagem “Não foi possível consultar a cotação agora. Tente novamente em instantes.” Não há resultado substituto ou cotação fictícia em falhas. Entradas inválidas retornam 400; resultados fora dos limites técnicos retornam 400 com `AMOUNT_OUT_OF_RANGE`.
 
-Simular não cria operação nem auditoria. O token tem integridade verificável, sem criptografia do conteúdo e sem garantia de uso único. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de confirmação e a tela com alerta visual pertencem às próximas etapas.
+Simular não cria operação nem auditoria. O token tem integridade verificável, sem criptografia do conteúdo. O registro da operação garante uma única confirmação por simulação, por restrição persistida no banco. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de confirmação está disponível abaixo; a tela `/simulacoes` apresenta alertas persistentes e permite tentar novamente preservando os campos.
+
+## Operações e auditoria
+
+Todas as rotas exigem sessão de administrador ou operador e retornam `Cache-Control: no-store`. Mutações exigem JSON e recusam `Origin` diferente da aplicação.
+
+| Método e rota | Resultado |
+| --- | --- |
+| `POST /api/operacoes` | Confirma simulação para um cliente; 201 na criação, 200 no reenvio da mesma confirmação |
+| `GET /api/operacoes` | Lista da equipe, em ordem de criação decrescente; sem paginação nesta V1 |
+| `GET /api/operacoes/:id` | Detalhes com eventos de auditoria em ordem cronológica |
+| `PATCH /api/operacoes/:id/status` | Altera status e grava auditoria na mesma transação |
+
+Para confirmar, enviar somente `customerId` e `simulationToken` obtido de `/api/simulacoes`. Não enviar taxa, valores ou autoria; campos extras são recusados. O servidor verifica a assinatura, o funcionário, a validade, a consistência dos valores e a existência do cliente. Não consulta outra cotação. Operação Pendente e evento inicial são gravados juntos.
+
+```js
+const response = await fetch("/api/operacoes", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ customerId, simulationToken }),
+});
+const { data: operation } = await response.json();
+```
+
+A mesma simulação gera no máximo uma operação, mesmo com confirmações simultâneas. Reenvio ainda válido para o mesmo cliente retorna a operação já existente e seu status atual, sem repetir auditoria. Para outro cliente, retorna 409 `SIMULATION_ALREADY_CONFIRMED`. A validação do token ocorre antes da recuperação: se expirou, retorna 400 `INVALID_SIMULATION`; em caso de dúvida após uma falha de conexão, consultar as operações antes de iniciar uma nova confirmação.
+
+A resposta usa `{ data: ... }`. Cada operação inclui identificadores, cliente (id, nome, CPF cadastrado), funcionário criador (id e nome), moedas, valores, taxa, referência e status, com datas de criação/atualização. Valores são strings com duas casas e a taxa com oito. `quoteReferenceDate` preserva `YYYY-MM-DD`; os demais instantes são ISO 8601. Detalhes, confirmação e alteração também incluem `auditEvents` com ação, status anterior/novo, instante e autor (id e nome). Nunca retorna senha, hash de senha, token ou chave interna de confirmação.
+
+Para alterar o status, enviar o status exibido na tela em `expectedStatus` e o destino em `status`:
+
+```js
+await fetch(`/api/operacoes/${operation.id}/status`, {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ expectedStatus: "PENDING", status: "UNDER_REVIEW" }),
+});
+```
+
+Transições: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Saltos, repetições, regressões e reabertura retornam 409 `INVALID_TRANSITION`. Se o status atual difere de `expectedStatus`, retorna 409 `STATUS_CONFLICT` e orienta atualizar os dados. Somente a transição vencedora em uma disputa grava seu evento. Falha de auditoria desfaz também a criação/alteração da operação. Cliente ou operação inexistente retorna 404. A interface de confirmação está em `/simulacoes`; a listagem e os detalhes com auditoria estão em `/operacoes` e `/operacoes/:id`. A visão geral `/inicio` apresenta as quantidades reais por status.

@@ -7,6 +7,9 @@ export function AppNavigation({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const links = [
     { href: "/inicio", label: "Visão geral", icon: "grid" as const },
+    { href: "/clientes", label: "Clientes", icon: "users" as const },
+    { href: "/simulacoes", label: "Simulações", icon: "exchange" as const },
+    { href: "/operacoes", label: "Operações", icon: "operations" as const },
     ...(isAdmin
       ? [
           {

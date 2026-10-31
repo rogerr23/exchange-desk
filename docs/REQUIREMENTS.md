@@ -98,6 +98,8 @@ Não é obrigatório persistir um histórico de simulações independentes. A re
 - Registrar moedas, valor de origem, valor de destino, taxa, fonte e horário da referência, data de criação e status inicial Pendente.
 - Preservar a cotação e os valores registrados, mesmo que o mercado mude depois.
 - Listar operações e permitir consultar seus detalhes e histórico de status.
+- Impedir registros duplicados por clique repetido ou reenvio da mesma confirmação, inclusive simultâneo. Reenvio válido para o mesmo cliente retorna a operação existente; outro cliente exige nova simulação.
+- Na interface, revisar cliente, valores, cotação, referência e validade antes de confirmar; oferecer Voltar e Confirmar operação, bloquear envios durante o carregamento e direcionar aos detalhes após sucesso.
 - Aceitar somente as transições abaixo.
 
 | Status atual | Próximo status permitido |
@@ -125,7 +127,7 @@ Auditoria completa de login e de todas as alterações cadastrais não faz parte
 
 ## 4. Requisitos técnicos e de qualidade
 
-- Usar Next.js Full Stack, TypeScript, PostgreSQL, Prisma, Auth.js, Zod, Tailwind CSS, Recharts e Vitest.
+- Usar Next.js Full Stack, TypeScript, PostgreSQL, Prisma, Auth.js, Zod, Tailwind CSS e Vitest.
 - Validar entradas e autorizar ações no servidor, sem depender de botões ocultos.
 - Manter segredos e chamadas autenticadas à API de cotação no servidor.
 - Usar `Decimal(18,2)` para valores e `Decimal(18,8)` para taxas, com aritmética decimal e `ROUND_HALF_UP`, conforme ARCHITECTURE.md. Valores de entrada aceitam até duas casas; o resultado é arredondado para duas casas após a multiplicação pela taxa normalizada.
@@ -134,14 +136,14 @@ Auditoria completa de login e de todas as alterações cadastrais não faz parte
 - Manter testes essenciais com Vitest para conversão, transições de status, validações, autorização, falhas do provedor e integridade/expiração da referência de simulação. Sem meta de cobertura, teste por componente ou repetição da mesma regra em várias camadas; a política de execução está em ARCHITECTURE.md.
 - Verificar a transação de operação/auditoria e conflitos de atualização em testes de integração com banco de teste.
 
-Recharts está definido na stack. **Proposta a confirmar:** um resumo de quantidade de operações por status usando os próprios dados do sistema, sem criar um requisito de histórico de mercado.
+Decisão aprovada para esta entrega: a visão geral apresenta somente as quantidades de operações Pendentes, Em análise, Concluídas e Canceladas e o total da equipe. Os números vêm do banco e exibem zero quando não há registros. Gráficos e a dependência Recharts ficam adiados; não são critérios de conclusão da V1 atual.
 
 ## 5. Pendências antes da implementação correspondente
 
 | Decisão | O que falta definir |
 | --- | --- |
-| Cotações e simulações | Servidor implementado na etapa 4; interface e confirmação de operação pendentes |
-| Interface | Conteúdo mínimo do resumo com Recharts |
+| Cotações, simulações e operações | Servidor e telas operacionais implementados |
+| Interface | Contadores por status aprovados e implementados; gráficos adiados |
 | Ambiente | Hospedagem e variáveis das integrações; base local e scripts definidos no README |
 
 ## 6. Critério de conclusão da V1

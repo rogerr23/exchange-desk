@@ -8,7 +8,7 @@ A stack, a organização de pastas, o modelo inicial e as decisões de acesso es
 
 ```text
 Navegador
-  └─ Next.js: interface com Tailwind CSS e Recharts
+  └─ Next.js: interface com Tailwind CSS
        └─ Camada de servidor: sessão, autorização e validação Zod
             └─ Serviços de clientes, cotações e operações
                  ├─ Prisma → PostgreSQL
@@ -34,7 +34,7 @@ Componentes da interface não devem acessar o banco diretamente. Toda mutação 
 
 ## 3. Organização definida
 
-Usar o App Router do Next.js, com componentes de servidor para leitura quando adequado e componentes de cliente para interações e gráficos.
+Usar o App Router do Next.js, com componentes de servidor para leitura quando adequado e componentes de cliente para formulários e interações.
 
 ```text
 src/
@@ -104,6 +104,7 @@ Não existe entidade de cliente autenticável. Não disponibilizar rota pública
 ### Operação (`ExchangeOperation`)
 
 - `id`, `customerId`, `createdById`, `createdAt`, `updatedAt`.
+- `confirmationKey`: hash SHA-256 único do conteúdo validado da simulação; interno, não retornado pela API. É opcional apenas para preservar registros anteriores à migração.
 - `sourceCurrency`, `targetCurrency`: `BRL`, `USD` ou `EUR`.
 - `sourceAmount`, `targetAmount`, `exchangeRate`: decimais.
 - `quoteProvider`, `quoteReferenceDate`, `quoteTimestamp`, `quoteTimestampKind`, `quoteFetchedAt`.
@@ -154,9 +155,15 @@ Conversão: `valorDestino = valorOrigem × taxa`. Não adicionar impostos, tarif
 3. Verificar a assinatura e a validade de 15 minutos da simulação. Se expirar, exigir nova simulação e reapresentar o resultado antes da confirmação.
 4. Em uma transação do Prisma, criar a operação Pendente e seu evento inicial de auditoria.
 
-A simulação será devolvida em um token assinado com HMAC-SHA256 no servidor, usando uma chave derivada de `AUTH_SECRET` com contexto exclusivo para simulações. O conteúdo inclui versão, funcionário, moedas, valores decimais, taxa, fonte, data de referência, horário de consulta, emissão e expiração. Usar `node:crypto`, sem nova dependência ou tabela de simulações. O token garante integridade, não sigilo, e não deve conter dados cadastrais de clientes.
+A simulação será devolvida em um token assinado com HMAC-SHA256 no servidor, usando uma chave derivada de `AUTH_SECRET` com contexto exclusivo para simulações. O conteúdo inclui versão, identificador UUID da simulação, funcionário, moedas, valores decimais, taxa, fonte, data de referência, horário de consulta, emissão e expiração. Tokens anteriores sem UUID continuam verificáveis até sua expiração. Usar `node:crypto`, sem nova dependência ou tabela de simulações. O token garante integridade, não sigilo, e não deve conter dados cadastrais de clientes.
 
-Na confirmação, validar formato, assinatura com comparação em tempo constante, funcionário da sessão e expiração; validar também o cliente selecionado e recalcular o resultado a partir dos valores assinados como verificação de consistência. Persistir exatamente a taxa e os valores apresentados, sem consultar outra cotação. A validade começa na emissão da simulação; a idade do cache é uma informação separada. Uma simulação ainda válida pode ser confirmada mesmo se o provedor estiver indisponível. Esse token não oferece uso único ou idempotência; esse mecanismo adicional fica fora desta entrega.
+Na confirmação, validar formato, assinatura com comparação em tempo constante, funcionário da sessão e expiração; validar também o cliente selecionado e recalcular o resultado a partir dos valores assinados como verificação de consistência. Persistir exatamente a taxa e os valores apresentados, sem consultar outra cotação. A validade começa na emissão da simulação; a idade do cache é uma informação separada. Uma simulação ainda válida pode ser confirmada mesmo se o provedor estiver indisponível. A confirmação calcula um hash do conteúdo validado e usa a restrição única `confirmationKey` no PostgreSQL para impedir duas operações da mesma simulação, inclusive em requisições simultâneas. Um reenvio válido para o mesmo cliente retorna a operação existente sem criar evento; a tentativa de reutilizar a simulação para outro cliente retorna conflito. A verificação da validade acontece antes dessa consulta: tokens expirados continuam recusados, mesmo em reenvios; nesse caso, consultar a lista de operações antes de simular de novo. A assinatura isolada não garante uso único; a restrição persistida faz essa proteção.
+
+### Confirmação na interface — decisões aprovadas
+
+A tela de revisão apresentará cliente (nome e identificador), moedas, valor de origem, taxa, valor de destino, fonte, data de referência, horário de consulta e validade restante. Ações **Voltar** e **Confirmar operação**. Durante o envio, mostrar carregamento e desabilitar a confirmação; o servidor também impede duplicação, independentemente do botão.
+
+Sucesso direcionará aos detalhes da operação Pendente, com o evento inicial. Expiração exigirá nova simulação e revisão do resultado. Falhas de gravação serão apresentadas em alerta sem indicar sucesso. Em resposta incerta por falha de conexão, reenviar o mesmo token enquanto válido recupera a operação existente. Essas decisões aprovadas estão implementadas na etapa 6, na rota `/simulacoes`; a revisão precede o envio e o sucesso direciona a `/operacoes/:id`.
 
 ### Alterar status
 
@@ -166,6 +173,8 @@ Na confirmação, validar formato, assinatura com comparação em tempo constant
 4. Confirmar as duas gravações juntas ou desfazer ambas.
 
 Usar uma atualização condicionada ao status esperado, ou mecanismo equivalente, para impedir que ações simultâneas produzam transições incompatíveis. Se outra alteração já tiver ocorrido, recusar a tentativa e orientar a atualização da tela.
+
+Os serviços de confirmação, listagem, detalhes e mudança de status estão implementados em `src/server/services/operations.ts`, com entradas em `/api/operacoes`, `/api/operacoes/:id` e `/api/operacoes/:id/status`. A mudança recebe `expectedStatus` e `status`; a atualização condicionada e a auditoria ocorrem na mesma transação. Valores saem como strings com duas/oito casas, a data de referência como `YYYY-MM-DD`, e hashes e senhas não integram a seleção.
 
 Fluxo único: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Estados finais não permitem novas transições.
 
@@ -187,7 +196,7 @@ Na avaliação do provedor, as três bases BRL, USD e EUR retornaram os dois des
 - Em timeout, erro HTTP, resposta inválida ou par ausente, informar indisponibilidade e impedir uma nova simulação. Não usar taxa fictícia como alternativa. Uma simulação assinada já emitida continua válida até sua expiração.
 - Consultar somente mediante solicitação autenticada de simulação, reutilizando o cache enquanto válido. Sem atualização em segundo plano, polling, limitador distribuído ou infraestrutura adicional nesta etapa.
 
-A entrada será `POST /api/simulacoes`, com moedas e valor de origem como string decimal. O serviço verifica `quotes:simulate`, valida a entrada e retorna o resultado, a referência, `expiresAt` e o token de confirmação. A resposta HTTP usa `Cache-Control: no-store`; o cache de cotações fica exclusivamente no servidor. O adaptador, o serviço, a entrada HTTP e as funções de assinatura/verificação estão implementados. A criação da operação e o consumo desse token pertencem à etapa 5. Não é necessário criar um endpoint separado de cotações para esta entrega.
+A entrada será `POST /api/simulacoes`, com moedas e valor de origem como string decimal. O serviço verifica `quotes:simulate`, valida a entrada e retorna o resultado, a referência, `expiresAt` e o token de confirmação. A resposta HTTP usa `Cache-Control: no-store`; o cache de cotações fica exclusivamente no servidor. O adaptador, o serviço, a entrada HTTP e as funções de assinatura/verificação estão implementados. A criação da operação e o consumo desse token estão implementados na etapa 5. Não é necessário criar um endpoint separado de cotações para esta entrega.
 
 ### Apresentação de falhas na interface
 
@@ -214,7 +223,9 @@ A matriz completa está em [REQUIREMENTS.md](./REQUIREMENTS.md). Login, cookies,
 
 ## 8. Interface e testes
 
-Tailwind CSS será usado na interface. Recharts será usado em uma visualização simples cujo conteúdo ainda será confirmado; a proposta é contar operações por status. Não é necessário contratar ou persistir séries históricas de mercado para essa finalidade.
+A interface usa Tailwind CSS e os padrões existentes de cores, formulários, cartões e alertas. Decisão aprovada: começar somente com os contadores reais por status e o total, sem gráficos. `getOperationSummary` agrega as quantidades no PostgreSQL depois de verificar a permissão; não carrega operações completas para calcular os números. Recharts fica adiado e não foi adicionado às dependências.
+
+Rotas operacionais: `/clientes`, `/clientes/novo`, `/simulacoes`, `/operacoes` e `/operacoes/:id`. As leituras usam serviços autorizados em componentes de servidor; formulários chamam as APIs existentes. Valores monetários são formatados diretamente de strings decimais, preservando centavos mesmo nos limites suportados. Instantes exibidos são identificados como horário de Brasília; a data diária é formatada sem conversão de fuso. A validade da simulação aparece em contagem regressiva e impede confirmação após expiração; o servidor continua sendo a autoridade final. Erros ficam em alertas persistentes, e tentativas de confirmação repetidas reutilizam o mesmo token.
 
 Usar Vitest apenas para os comportamentos essenciais abaixo, ao implementar cada fluxo. Sem meta de cobertura ou quantidade de testes. Um teste deve proteger uma regra relevante ou uma falha concreta; não criar um teste por arquivo, função ou componente:
 
@@ -230,16 +241,16 @@ Não duplicar a mesma regra em testes unitários, de serviço e HTTP sem uma dif
 
 Durante o desenvolvimento, executar os testes relacionados à mudança. Executar a suíte unitária completa, lint e tipos ao fechar uma entrega de código; build e integração quando a mudança afetar os respectivos fluxos ou antes de publicar. Integrações PostgreSQL ficam em comando separado e concentradas em persistência, transações e concorrência. A API externa real será conferida manualmente ao implementar o adaptador; os testes automatizados não dependem da rede. Alterações apenas de documentação exigem revisão do diff e consistência, sem rodar a suíte da aplicação.
 
-Já existem testes unitários das regras e guardas, testes de integração dos cadastros com PostgreSQL e teste HTTP real de autenticação e permissões. A integração usa um banco separado com nome terminado em `_test`. A verificação manual das telas de trabalho em computador e celular acompanhará a etapa 6; o fluxo de câmbio completo continua pendente.
+Já existem testes unitários das regras e guardas, testes de integração dos cadastros com PostgreSQL e teste HTTP real de autenticação e permissões. A integração usa um banco separado com nome terminado em `_test`. O fluxo visual foi verificado em desktop e em telas de 390 e 320 pixels, usando exclusivamente banco de testes e usuários de verificação. Foram conferidos cadastro, falha de rede do provedor com alerta e campos preservados, nova tentativa com cotação real, revisão, confirmação, conclusão pelo administrador e cancelamento pelo operador, com auditoria e contadores correspondentes. Os testes de servidor de expiração, concorrência e rollback permanecem separados dessa verificação visual.
 
 ## 9. Decisões técnicas pendentes
 
 | Tema | Decisão a registrar |
 | --- | --- |
 | Ambiente | Base definida: Node.js 22.14.0, npm 11.6.2 e PostgreSQL 17; versões e scripts em `package.json` |
-| Cotações e simulação | Implementadas no servidor conforme seções 5 e 6; tela pendente |
+| Cotações e simulação | Servidor e tela implementados conforme seções 5 e 6 |
 | Entradas de servidor | Simulação por Route Handler definida; entradas dos demais fluxos serão escolhidas ao implementá-los |
-| Gráficos | Conteúdo mínimo com Recharts |
+| Visão geral | Contadores por status implementados; gráficos e Recharts adiados por decisão do usuário |
 | Publicação | Hospedagem, PostgreSQL, variáveis e aplicação das migrações |
 
 As decisões devem ser atualizadas nestes documentos quando resolvidas. Microsserviços, filas, pagamentos, saldos e mecanismos financeiros adicionais não são necessários para o escopo da V1.

@@ -1,0 +1,143 @@
+import "server-only";
+import { createHash } from "node:crypto";
+import { Prisma } from "@/generated/prisma/client";
+import { canChangeStatus } from "@/domain/operation-status";
+import { createOperationSchema, changeOperationStatusSchema, operationIdSchema } from "@/schemas/operation";
+import { requirePermission } from "@/server/auth/authorize";
+import { getDb } from "@/server/db/client";
+import { AppError } from "@/server/errors";
+import { verifySimulation } from "@/server/quotes/simulation-token";
+
+const operationSelect = {
+  id: true, customerId: true, createdById: true,
+  sourceCurrency: true, targetCurrency: true, sourceAmount: true, targetAmount: true,
+  exchangeRate: true, quoteProvider: true, quoteReferenceDate: true,
+  quoteTimestamp: true, quoteTimestampKind: true, quoteFetchedAt: true,
+  status: true, createdAt: true, updatedAt: true,
+  customer: { select: { id: true, name: true, fictionalCpf: true } },
+  createdBy: { select: { id: true, name: true } },
+} satisfies Prisma.ExchangeOperationSelect;
+const detailSelect = {
+  ...operationSelect,
+  auditEvents: {
+    orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true, operationId: true, actorId: true, occurredAt: true, action: true,
+      previousStatus: true, newStatus: true, actor: { select: { id: true, name: true } },
+    },
+  },
+} satisfies Prisma.ExchangeOperationSelect;
+
+type OperationRow = Prisma.ExchangeOperationGetPayload<{ select: typeof operationSelect }>;
+function serializeOperation<T extends OperationRow>(operation: T) {
+  return {
+    ...operation,
+    sourceAmount: operation.sourceAmount.toFixed(2),
+    targetAmount: operation.targetAmount.toFixed(2),
+    exchangeRate: operation.exchangeRate.toFixed(8),
+    quoteReferenceDate: operation.quoteReferenceDate?.toISOString().slice(0, 10) ?? null,
+  };
+}
+
+function statusConflict() {
+  return new AppError(409, "STATUS_CONFLICT", "Esta operação foi alterada. Atualize os dados antes de tentar novamente.");
+}
+
+export async function createOperation(input: unknown) {
+  const actor = await requirePermission("operations:create");
+  const data = createOperationSchema.parse(input);
+  const simulation = verifySimulation(data.simulationToken, actor.id);
+  // O conteúdo validado evita que representações alternativas da assinatura gerem duplicações.
+  const confirmationKey = createHash("sha256").update(JSON.stringify(simulation)).digest("hex");
+  const db = getDb();
+
+  async function existingConfirmation() {
+    const existing = await db.exchangeOperation.findUnique({
+      where: { confirmationKey }, select: detailSelect,
+    });
+    if (!existing) return null;
+    if (existing.customerId !== data.customerId) {
+      throw new AppError(409, "SIMULATION_ALREADY_CONFIRMED", "Esta simulação já foi confirmada para outro cliente. Faça uma nova simulação.");
+    }
+    return { operation: serializeOperation(existing), created: false };
+  }
+
+  const existing = await existingConfirmation();
+  if (existing) return existing;
+  try {
+    const operation = await db.$transaction(async (tx) => {
+      if (!await tx.customer.findUnique({ where: { id: data.customerId }, select: { id: true } })) {
+        throw new AppError(404, "NOT_FOUND", "Cliente não encontrado.");
+      }
+      return tx.exchangeOperation.create({
+        data: {
+          confirmationKey, customerId: data.customerId, createdById: actor.id,
+          sourceCurrency: simulation.sourceCurrency, targetCurrency: simulation.targetCurrency,
+          sourceAmount: simulation.sourceAmount, targetAmount: simulation.targetAmount,
+          exchangeRate: simulation.exchangeRate, quoteProvider: simulation.quoteProvider,
+          quoteReferenceDate: new Date(`${simulation.quoteReferenceDate}T00:00:00.000Z`),
+          quoteTimestamp: new Date(simulation.quoteTimestamp), quoteTimestampKind: simulation.quoteTimestampKind,
+          quoteFetchedAt: new Date(simulation.quoteFetchedAt), status: "PENDING",
+          auditEvents: { create: { actorId: actor.id, action: "CREATED", newStatus: "PENDING" } },
+        },
+        select: detailSelect,
+      });
+    });
+    return { operation: serializeOperation(operation), created: true };
+  } catch (error) {
+    // Duas confirmações simultâneas disputam a restrição única; a perdedora lê a vencedora.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const repeated = await existingConfirmation();
+      if (repeated) return repeated;
+    }
+    throw error;
+  }
+}
+
+export async function listOperations() {
+  await requirePermission("operations:read");
+  const operations = await getDb().exchangeOperation.findMany({
+    select: operationSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+  });
+  return operations.map(serializeOperation);
+}
+
+export async function getOperationSummary() {
+  await requirePermission("operations:read");
+  const groups = await getDb().exchangeOperation.groupBy({ by: ["status"], _count: { _all: true } });
+  const counts = { PENDING: 0, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0 };
+  for (const group of groups) counts[group.status] = group._count._all;
+  return counts;
+}
+
+export async function getOperation(inputId: string) {
+  await requirePermission("operations:read");
+  await requirePermission("audit:read");
+  const id = operationIdSchema.parse(inputId);
+  const operation = await getDb().exchangeOperation.findUnique({ where: { id }, select: detailSelect });
+  if (!operation) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
+  return serializeOperation(operation);
+}
+
+export async function changeOperationStatus(inputId: string, input: unknown) {
+  const actor = await requirePermission("operations:change-status");
+  const id = operationIdSchema.parse(inputId);
+  const { expectedStatus, status } = changeOperationStatusSchema.parse(input);
+  if (!canChangeStatus(expectedStatus, status)) {
+    throw new AppError(409, "INVALID_TRANSITION", "Essa mudança de status não é permitida.");
+  }
+  const operation = await getDb().$transaction(async (tx) => {
+    const current = await tx.exchangeOperation.findUnique({ where: { id }, select: { status: true } });
+    if (!current) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
+    if (current.status !== expectedStatus) throw statusConflict();
+    const updated = await tx.exchangeOperation.updateMany({
+      where: { id, status: expectedStatus }, data: { status },
+    });
+    if (updated.count !== 1) throw statusConflict();
+    await tx.operationAuditEvent.create({
+      data: { operationId: id, actorId: actor.id, action: "STATUS_CHANGED", previousStatus: expectedStatus, newStatus: status },
+    });
+    return tx.exchangeOperation.findUniqueOrThrow({ where: { id }, select: detailSelect });
+  });
+  return serializeOperation(operation);
+}

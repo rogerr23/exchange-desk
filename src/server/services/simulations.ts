@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { convertAmount } from "@/domain/conversion";
 import { simulationInputSchema } from "@/schemas/simulation";
 import { requirePermission } from "@/server/auth/authorize";
@@ -23,5 +24,5 @@ export async function simulateConversion(input: unknown) {
     issuedAt: new Date(issuedAt).toISOString(),
     expiresAt: new Date(issuedAt + SIMULATION_TTL_MS).toISOString(),
   };
-  return { ...result, simulationToken: signSimulation({ ...result, version: 1, actorId: actor.id }) };
+  return { ...result, simulationToken: signSimulation({ ...result, simulationId: randomUUID(), version: 1, actorId: actor.id }) };
 }

@@ -8,6 +8,7 @@ import { AppError } from "@/server/errors";
 export const SIMULATION_TTL_MS = 15 * 60 * 1000;
 const tokenPayloadSchema = quoteSchema.extend({
   version: z.literal(1), actorId: z.string().min(1).max(128),
+  simulationId: z.uuid().optional(),
   sourceAmount: z.string(), targetAmount: z.string(),
   issuedAt: z.iso.datetime(), expiresAt: z.iso.datetime(),
 });

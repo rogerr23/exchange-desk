@@ -26,7 +26,6 @@ A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo inter
 | Auth.js | Autenticação e sessão |
 | Zod | Validação dos dados recebidos no servidor |
 | Tailwind CSS | Estilização da interface |
-| Recharts | Visualizações simples a partir dos dados disponíveis |
 | Vitest | Testes das regras e dos serviços |
 
 ## Fluxo principal
@@ -43,7 +42,7 @@ O status Concluída indica o encerramento do fluxo interno da operação; pagame
 
 ## Execução local
 
-Login e gerenciamento de funcionários já têm telas próprias. Autenticação e cadastros de funcionários/clientes também estão disponíveis pela API. Cotações e simulações estão disponíveis pela API; operações e as demais telas serão implementadas nas próximas etapas.
+Login, funcionários, clientes, simulações e operações já têm telas próprias. A visão geral apresenta as quantidades reais por status, sem gráficos por decisão de escopo. O fluxo permite cadastrar cliente, simular, revisar e confirmar uma operação, alterar seu status e consultar a auditoria. Os serviços também estão disponíveis pela API.
 
 Ambiente de referência: **Node.js 22.14.0** (ver `.nvmrc`), **npm 11.6.2** e **PostgreSQL 17**. As versões das dependências estão fixadas em `package.json` e `package-lock.json`. Prisma 7 usa configuração em `prisma.config.ts` e o adaptador PostgreSQL; consulte a [documentação oficial](https://www.prisma.io/docs/orm/v7).
 
@@ -97,7 +96,7 @@ Acesse `/login` para entrar. Após o login, `/inicio` apresenta o espaço da equ
 | `npm run db:deploy` | Aplicar migrações existentes no ambiente de publicação |
 | `npm run db:studio` | Abrir o explorador do banco |
 
-O schema define funcionários, clientes, operações e auditoria. A migração inicial foi aplicada e validada no PostgreSQL local e no banco de testes. Em um novo ambiente, use `db:deploy` para aplicar as migrações existentes. Para novas alterações do schema, use `db:migrate`. O bootstrap é exclusivo do comando local; os demais funcionários são cadastrados por administrador autenticado.
+O schema define funcionários, clientes, operações e auditoria. As migrações incluem a base e a chave única de confirmação de operações. Aplique-as com `npm run db:deploy` antes de usar as novas rotas. Em um novo ambiente, use `db:deploy` para aplicar as migrações existentes. Para novas alterações do schema, use `db:migrate`. O bootstrap é exclusivo do comando local; os demais funcionários são cadastrados por administrador autenticado.
 
 Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.env.example` descreve as variáveis locais, de autenticação, bootstrap e testes. As políticas de cotações e simulação estão implementadas no servidor e descritas na arquitetura. Auth.js está fixado em `next-auth@5.0.0-beta.32`, versão beta indicada pela documentação oficial para a integração v5; Argon2 usa `@node-rs/argon2`.
 
@@ -105,7 +104,7 @@ Credenciais e segredos não devem ser versionados. O `.env` está ignorado; o `.
 
 A política de testes é enxuta: proteger regras relevantes e falhas concretas, sem meta de cobertura, teste por componente ou duplicação entre camadas. Integração roda separadamente; telas são verificadas manualmente. Alterações apenas de documentação não exigem a suíte da aplicação. Detalhes em [ARCHITECTURE.md](./docs/ARCHITECTURE.md#8-interface-e-testes).
 
-Lint, tipos, schema Prisma e build foram verificados. Os testes incluem autorização no servidor, validações, bootstrap repetido e concorrente, hash Argon2id, cadastros e o fluxo HTTP real de login, cookies, permissões e logout.
+Lint, tipos, schema Prisma e build foram verificados. Os testes incluem autorização no servidor, validações, bootstrap repetido e concorrente, hash Argon2id, cadastros, simulação, confirmação sem duplicação, transições concorrentes, rollback de operação/auditoria e o fluxo HTTP real de login, cookies, permissões e logout.
 
 Para executar a integração, crie um banco separado com nome terminado em `_test` e configure `TEST_DATABASE_URL` no `.env`. Os testes limpam as tabelas desse banco, por isso ele deve ser exclusivo e descartável. Usando o PostgreSQL local do Compose:
 
@@ -141,11 +140,11 @@ Administrador e operador acessam os clientes, operações e auditoria da mesma e
 
 ## Próxima entrega e decisões pendentes
 
-A etapa 4 está implementada no servidor: `POST /api/simulacoes`, timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está em [ARCHITECTURE.md](./docs/ARCHITECTURE.md). A tela de simulação está pendente. A próxima entrega é o registro de operações com auditoria.
+A etapa 4 está implementada no servidor: `POST /api/simulacoes`, timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está em [ARCHITECTURE.md](./docs/ARCHITECTURE.md). A etapa 5 também está implementada no servidor: confirmação sem duplicação, consultas, transições de status e auditoria atômica. As telas operacionais estão implementadas: clientes, simulação com revisão e validade, confirmação, listagem e detalhes com transições e auditoria. A visão geral usa somente contadores reais por status, conforme a opção aprovada.
 
-Permanecem pendentes o conteúdo mínimo dos gráficos e o ambiente de publicação.
+A próxima etapa é definir o ambiente de publicação, configurar as variáveis e migrações e conferir o fluxo no ambiente publicado. Gráficos e a adoção de Recharts ficam adiados, sem bloquear a V1.
 
-Essas pendências não alteram o escopo funcional fechado. Devem ser resolvidas antes da implementação das partes correspondentes; as propostas estão em [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+A pendência de publicação não altera o escopo funcional fechado. Devem ser resolvidas antes da implementação das partes correspondentes; as propostas estão em [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 ## Documentação
 

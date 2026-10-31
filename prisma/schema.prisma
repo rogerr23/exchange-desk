@@ -58,6 +58,7 @@ model Customer {
 
 model ExchangeOperation {
   id                 String                @id @default(cuid())
+  confirmationKey    String?               @unique @db.VarChar(64)
   customerId         String
   createdById        String
   sourceCurrency     Currency

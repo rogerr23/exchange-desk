@@ -4,6 +4,9 @@ const paths = {
   arrow: "M5 12h14m-6-6 6 6-6 6",
   back: "M19 12H5m6-6-6 6 6 6",
   plus: "M12 5v14M5 12h14",
+  exchange: "M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4",
+  history: "M3 11a9 9 0 1 1 2.7 7M3 4v7h7m2-4v5l3 2",
+  operations: "M8 5h8m-9 0H5v16h14V5h-2M8 3h8v4H8zM8 12h8M8 16h5",
   lock: "M7 10V7a5 5 0 0 1 10 0v3M6 10h12v11H6zM12 14v3",
   eye: "M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
   users:
