@@ -9,7 +9,7 @@ describe("permissões da equipe", () => {
     }
   });
 
-  it("permite que o operador consulte operações da equipe, altere status e leia auditoria", () => {
+  it("permite que o operador consulte operações do próprio escopo, altere status e leia auditoria", () => {
     expect(can("OPERATOR", "operations:read")).toBe(true);
     expect(can("OPERATOR", "operations:change-status")).toBe(true);
     expect(can("OPERATOR", "audit:read")).toBe(true);

@@ -26,6 +26,7 @@ beforeEach(async () => {
   await db.operationAuditEvent.deleteMany();
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
+  await db.simulation.deleteMany();
   await db.user.deleteMany();
 });
 

@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { convertAmount } from "@/domain/conversion";
 import { quoteSchema, simulationInputSchema } from "@/schemas/simulation";
@@ -13,6 +13,10 @@ const tokenPayloadSchema = quoteSchema.extend({
   issuedAt: z.iso.datetime(), expiresAt: z.iso.datetime(),
 });
 type TokenPayload = z.infer<typeof tokenPayloadSchema>;
+
+export function simulationConfirmationKey(payload: TokenPayload) {
+  return createHash("sha256").update(JSON.stringify(tokenPayloadSchema.parse(payload))).digest("hex");
+}
 
 function signingKey() {
   const secret = process.env.AUTH_SECRET;

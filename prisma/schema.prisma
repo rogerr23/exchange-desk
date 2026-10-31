@@ -43,6 +43,7 @@ model User {
   role         Role                  @default(OPERATOR)
   createdAt    DateTime              @default(now()) @db.Timestamptz(3)
   operations   ExchangeOperation[]
+  simulations  Simulation[]
   auditEvents  OperationAuditEvent[]
 }
 
@@ -97,4 +98,23 @@ model OperationAuditEvent {
 
   @@index([operationId, occurredAt, id])
   @@index([actorId])
+}
+
+model Simulation {
+  id                 String   @id
+  confirmationKey    String   @unique @db.VarChar(64)
+  createdById        String
+  sourceCurrency     Currency
+  targetCurrency     Currency
+  sourceAmount       Decimal  @db.Decimal(18, 2)
+  targetAmount       Decimal  @db.Decimal(18, 2)
+  exchangeRate       Decimal  @db.Decimal(18, 8)
+  quoteProvider      String   @db.VarChar(100)
+  quoteReferenceDate DateTime @db.Date
+  quoteFetchedAt     DateTime @db.Timestamptz(3)
+  issuedAt           DateTime @db.Timestamptz(3)
+  expiresAt          DateTime @db.Timestamptz(3)
+  createdBy          User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([createdById, issuedAt])
 }

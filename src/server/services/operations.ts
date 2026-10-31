@@ -1,12 +1,11 @@
 import "server-only";
-import { createHash } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { canChangeStatus } from "@/domain/operation-status";
 import { createOperationSchema, changeOperationStatusSchema, operationIdSchema } from "@/schemas/operation";
 import { requirePermission } from "@/server/auth/authorize";
 import { getDb } from "@/server/db/client";
 import { AppError } from "@/server/errors";
-import { verifySimulation } from "@/server/quotes/simulation-token";
+import { simulationConfirmationKey, verifySimulation } from "@/server/quotes/simulation-token";
 
 const operationSelect = {
   id: true, customerId: true, createdById: true,
@@ -48,7 +47,7 @@ export async function createOperation(input: unknown) {
   const data = createOperationSchema.parse(input);
   const simulation = verifySimulation(data.simulationToken, actor.id);
   // O conteúdo validado evita que representações alternativas da assinatura gerem duplicações.
-  const confirmationKey = createHash("sha256").update(JSON.stringify(simulation)).digest("hex");
+  const confirmationKey = simulationConfirmationKey(simulation);
   const db = getDb();
 
   async function existingConfirmation() {
@@ -94,27 +93,28 @@ export async function createOperation(input: unknown) {
   }
 }
 
-export async function listOperations() {
-  await requirePermission("operations:read");
+export async function listOperations(limit?: number) {
+  const actor = await requirePermission("operations:read");
   const operations = await getDb().exchangeOperation.findMany({
-    select: operationSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    where: actor.role === "ADMIN" ? {} : { createdById: actor.id },
+    take: limit, select: operationSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
   return operations.map(serializeOperation);
 }
 
 export async function getOperationSummary() {
-  await requirePermission("operations:read");
-  const groups = await getDb().exchangeOperation.groupBy({ by: ["status"], _count: { _all: true } });
+  const actor = await requirePermission("operations:read");
+  const groups = await getDb().exchangeOperation.groupBy({ where: actor.role === "ADMIN" ? {} : { createdById: actor.id }, by: ["status"], _count: { _all: true } });
   const counts = { PENDING: 0, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0 };
   for (const group of groups) counts[group.status] = group._count._all;
   return counts;
 }
 
 export async function getOperation(inputId: string) {
-  await requirePermission("operations:read");
+  const actor = await requirePermission("operations:read");
   await requirePermission("audit:read");
   const id = operationIdSchema.parse(inputId);
-  const operation = await getDb().exchangeOperation.findUnique({ where: { id }, select: detailSelect });
+  const operation = await getDb().exchangeOperation.findFirst({ where: { id, ...(actor.role === "ADMIN" ? {} : { createdById: actor.id }) }, select: detailSelect });
   if (!operation) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
   return serializeOperation(operation);
 }
@@ -127,11 +127,12 @@ export async function changeOperationStatus(inputId: string, input: unknown) {
     throw new AppError(409, "INVALID_TRANSITION", "Essa mudança de status não é permitida.");
   }
   const operation = await getDb().$transaction(async (tx) => {
-    const current = await tx.exchangeOperation.findUnique({ where: { id }, select: { status: true } });
+    const scope = actor.role === "ADMIN" ? {} : { createdById: actor.id };
+    const current = await tx.exchangeOperation.findFirst({ where: { id, ...scope }, select: { status: true } });
     if (!current) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
     if (current.status !== expectedStatus) throw statusConflict();
     const updated = await tx.exchangeOperation.updateMany({
-      where: { id, status: expectedStatus }, data: { status },
+      where: { id, ...scope, status: expectedStatus }, data: { status },
     });
     if (updated.count !== 1) throw statusConflict();
     await tx.operationAuditEvent.create({

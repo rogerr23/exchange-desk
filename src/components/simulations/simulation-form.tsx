@@ -31,16 +31,18 @@ type Customer = { id: string; name: string; fictionalCpf: string };
 export function SimulationForm({
   customers,
   initialCustomerId,
+  initialValues,
 }: {
   customers: Customer[];
   initialCustomerId: string;
+  initialValues?: { sourceCurrency: Currency; targetCurrency: Currency; sourceAmount: string };
 }) {
   const router = useRouter();
   const busy = useRef(false);
   const [pending, setPending] = useState<"simulate" | "confirm" | null>(null);
-  const [source, setSource] = useState<Currency>("BRL");
-  const [target, setTarget] = useState<Currency>("USD");
-  const [amount, setAmount] = useState("");
+  const [source, setSource] = useState<Currency>(initialValues?.sourceCurrency ?? "BRL");
+  const [target, setTarget] = useState<Currency>(initialValues?.targetCurrency ?? "USD");
+  const [amount, setAmount] = useState(initialValues?.sourceAmount ?? "");
   const [customerId, setCustomerId] = useState(initialCustomerId);
   const [simulation, setSimulation] = useState<Simulation | null>(null);
   const [error, setError] = useState("");
@@ -107,6 +109,7 @@ export function SimulationForm({
       setServerExpired(false);
       setConfirmationAttempted(false);
       setSimulation(result);
+      router.refresh();
     } catch (error) {
       handleError(error);
     } finally {
@@ -270,7 +273,8 @@ export function SimulationForm({
           </p>
           <p className="mt-4 border-t border-line pt-4 text-xs leading-6 text-muted">
             Depois de simular, você poderá selecionar o cliente e revisar os
-            dados antes de confirmar.
+            dados antes de confirmar. Suas simulações ficam salvas no histórico,
+            mesmo quando não viram uma operação.
           </p>
         </aside>
       </div>
@@ -390,6 +394,12 @@ export function SimulationForm({
             </dd>
           </div>
         </dl>
+        <div className="rounded-xl bg-canvas p-5 text-sm leading-6 text-muted">
+          <h3 className="font-semibold text-ink">Como ler este resultado</h3>
+          <p className="mt-2">O valor de origem multiplicado pela taxa resulta no valor de destino, arredondado para duas casas decimais.</p>
+          <p className="mt-2">A taxa é uma referência diária, sem atualização em tempo real. A simulação aplica somente essa taxa; tarifas, spread e impostos não são calculados.</p>
+          <p className="mt-2">O prazo de 15 minutos limita a confirmação desta simulação. Ao expirar, consulte novamente e revise os novos valores.</p>
+        </div>
         <p className="border-t border-line pt-5 text-xs leading-6 text-muted">
           A confirmação registra a operação como Pendente, preservando a taxa e
           os valores acima. Nenhum pagamento ou liquidação é realizado pelo

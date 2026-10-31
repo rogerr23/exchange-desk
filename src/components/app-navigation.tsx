@@ -6,10 +6,10 @@ import { Icon } from "./icon";
 export function AppNavigation({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const links = [
-    { href: "/inicio", label: "Visão geral", icon: "grid" as const },
+    { href: "/inicio", label: isAdmin ? "Visão geral" : "Meu painel", icon: "grid" as const },
     { href: "/clientes", label: "Clientes", icon: "users" as const },
-    { href: "/simulacoes", label: "Simulações", icon: "exchange" as const },
-    { href: "/operacoes", label: "Operações", icon: "operations" as const },
+    { href: "/simulacoes", label: isAdmin ? "Simulações" : "Minhas simulações", icon: "exchange" as const },
+    { href: "/operacoes", label: isAdmin ? "Operações" : "Minhas operações", icon: "operations" as const },
     ...(isAdmin
       ? [
           {

@@ -71,6 +71,7 @@ beforeAll(async () => {
   await db.operationAuditEvent.deleteMany();
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
+  await db.simulation.deleteMany();
   await db.user.deleteMany();
   await db.user.create({
     data: {
@@ -188,6 +189,24 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   expect(await employeePage.text()).toContain("HTTP Operador");
 
   const operator = await signIn("http-operator@example.test");
+  const panel = await request("/inicio", operator);
+  expect(panel.status).toBe(200);
+  const panelHtml = await panel.text();
+  expect(panelHtml).toContain("Meu painel");
+  expect(panelHtml).toContain("Somente registros criados por você");
+  expect(panelHtml).toContain("O que fazer agora");
+  expect(panelHtml).not.toContain("Gerenciar funcionários");
+  const historyPage = await request("/simulacoes/historico", operator);
+  expect(historyPage.status).toBe(200);
+  expect(await historyPage.text()).toContain("Simulações feitas por você");
+  const operationsPage = await request("/operacoes", operator);
+  expect(operationsPage.status).toBe(200);
+  expect(await operationsPage.text()).toContain("Operações registradas por você");
+  const adminPanel = await request("/inicio", admin);
+  expect(adminPanel.status).toBe(200);
+  const adminHtml = await adminPanel.text();
+  expect(adminHtml).toContain("Visão da equipe");
+  expect(adminHtml).toContain("Gerenciar funcionários");
   const deniedPage = await request("/funcionarios/novo", operator);
   // Redirecionamentos iniciados após streaming também podem vir no HTML.
   expect(

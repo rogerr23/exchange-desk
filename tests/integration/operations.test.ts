@@ -3,10 +3,15 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
 
 vi.mock("@/server/auth/config", () => ({ auth: vi.fn() }));
+vi.mock("@/server/quotes/frankfurter", () => ({ getQuote: vi.fn() }));
+import { getQuote } from "@/server/quotes/frankfurter";
+import { simulateConversion, listSimulations, getSimulationCount } from "@/server/services/simulations";
+import { GET as GET_SIMULATIONS } from "@/app/api/simulacoes/route";
+import { GET as GET_OPERATION } from "@/app/api/operacoes/[id]/route";
 import { auth } from "@/server/auth/config";
 import { getDb } from "@/server/db/client";
 import { signSimulation, SIMULATION_TTL_MS } from "@/server/quotes/simulation-token";
-import { createOperation, listOperations, getOperation, changeOperationStatus } from "@/server/services/operations";
+import { createOperation, listOperations, getOperationSummary, getOperation, changeOperationStatus } from "@/server/services/operations";
 import { POST, GET } from "@/app/api/operacoes/route";
 import { PATCH } from "@/app/api/operacoes/[id]/status/route";
 
@@ -38,6 +43,7 @@ beforeEach(async () => {
   await db.operationAuditEvent.deleteMany();
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
+  await db.simulation.deleteMany();
   await db.user.deleteMany();
   actorId = (await db.user.create({ data: { name: "Operador de Teste", email: "operator@example.test", passwordHash: "unused-in-service-test", role: "OPERATOR" } })).id;
   customerId = (await db.customer.create({ data: { name: "Cliente de Teste", fictionalCpf: "00000000000", email: "customer@example.test", phone: "11900000000" } })).id;
@@ -140,4 +146,57 @@ it("bloqueia consultas, confirmação e alteração sem sessão", async () => {
   await expect(getOperation("missing")).rejects.toMatchObject({ status: 401 });
   await expect(changeOperationStatus("missing", {})).rejects.toMatchObject({ status: 401 });
   expect(await db.exchangeOperation.count()).toBe(0);
+});
+
+it("isola operações, totais e auditoria do operador, inclusive por ID e API, e mantém a visão do administrador", async () => {
+  const own = (await createOperation({ customerId, simulationToken: token() })).operation;
+  const other = await db.user.create({ data: { name: "Outro operador", email: "other-operator@example.test", passwordHash: "unused", role: "OPERATOR" } });
+  vi.mocked(auth).mockResolvedValue({ user: { id: other.id } } as never);
+  const foreign = (await createOperation({ customerId, simulationToken: token({ actorId: other.id }) })).operation;
+  await changeOperationStatus(foreign.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" });
+  vi.mocked(auth).mockResolvedValue({ user: { id: actorId } } as never);
+  expect((await listOperations()).map((row) => row.id)).toEqual([own.id]);
+  expect(await getOperationSummary()).toEqual({ PENDING: 1, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0 });
+  expect((await (await GET()).json()).data.map((row: { id: string }) => row.id)).toEqual([own.id]);
+  expect((await GET_OPERATION(new Request(`http://localhost/api/operacoes/${foreign.id}`), { params: Promise.resolve({ id: foreign.id }) })).status).toBe(404);
+  expect((await PATCH(jsonRequest(`/api/operacoes/${foreign.id}/status`, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" }, "PATCH"), { params: Promise.resolve({ id: foreign.id }) })).status).toBe(404);
+  expect((await db.exchangeOperation.findUniqueOrThrow({ where: { id: foreign.id } })).status).toBe("UNDER_REVIEW");
+  expect(await db.operationAuditEvent.count({ where: { operationId: foreign.id } })).toBe(2);
+
+  const admin = await db.user.create({ data: { name: "Administrador", email: "admin-scope@example.test", passwordHash: "unused", role: "ADMIN" } });
+  vi.mocked(auth).mockResolvedValue({ user: { id: admin.id } } as never);
+  expect(await listOperations()).toHaveLength(2);
+  expect(await getOperationSummary()).toEqual({ PENDING: 1, UNDER_REVIEW: 1, COMPLETED: 0, CANCELED: 0 });
+  expect((await getOperation(foreign.id)).auditEvents).toHaveLength(2);
+  expect((await changeOperationStatus(foreign.id, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" })).status).toBe("COMPLETED");
+});
+
+it("persiste simulações por autor e vincula o histórico à operação, sem expor chave ou token", async () => {
+  const timestamp = new Date().toISOString();
+  vi.mocked(getQuote).mockResolvedValue({ sourceCurrency: "USD", targetCurrency: "BRL", exchangeRate: "5.12345678", quoteProvider: "Frankfurter / ECB", quoteReferenceDate: timestamp.slice(0, 10), quoteFetchedAt: timestamp, quoteTimestamp: timestamp, quoteTimestampKind: "FETCHED_AT" });
+  const simulated = await simulateConversion({ sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "100" });
+  expect(await db.exchangeOperation.count()).toBe(0);
+  const { operation } = await createOperation({ customerId, simulationToken: simulated.simulationToken });
+  const other = await db.user.create({ data: { name: "Outro operador", email: "history-other@example.test", passwordHash: "unused", role: "OPERATOR" } });
+  vi.mocked(auth).mockResolvedValue({ user: { id: other.id } } as never);
+  await simulateConversion({ sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "200" });
+  vi.mocked(auth).mockResolvedValue({ user: { id: actorId } } as never);
+  const history = await listSimulations();
+  expect(history).toHaveLength(1);
+  expect(history[0]).toMatchObject({ createdById: actorId, sourceAmount: "100.00", targetAmount: "512.35", operationId: operation.id, createdBy: { name: "Operador de Teste" } });
+  expect(history[0]).not.toHaveProperty("confirmationKey");
+  expect(history[0]).not.toHaveProperty("simulationToken");
+  expect(JSON.stringify(history)).not.toContain("passwordHash");
+  expect(await getSimulationCount()).toBe(1);
+  expect((await (await GET_SIMULATIONS()).json()).data).toHaveLength(1);
+  // Mesmo após expirar, a consulta e sua operação continuam no histórico.
+  await db.simulation.update({ where: { id: history[0].id }, data: { expiresAt: new Date(0) } });
+  expect((await listSimulations())[0].operationId).toBe(operation.id);
+  const admin = await db.user.create({ data: { name: "Administrador", email: "history-admin@example.test", passwordHash: "unused", role: "ADMIN" } });
+  vi.mocked(auth).mockResolvedValue({ user: { id: admin.id } } as never);
+  expect(await listSimulations()).toHaveLength(2);
+  expect(await listSimulations(1)).toHaveLength(1);
+  expect(await getSimulationCount()).toBe(2);
+  vi.mocked(auth).mockResolvedValue(null as never);
+  expect((await GET_SIMULATIONS()).status).toBe(401);
 });

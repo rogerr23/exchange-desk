@@ -7,16 +7,16 @@ import { requirePagePermission } from "@/server/auth/page-access";
 import { listOperations } from "@/server/services/operations";
 export const metadata: Metadata = { title: "Operações | ExchangeDesk" };
 export default async function OperationsPage() {
-  await requirePagePermission("operations:read");
+  const actor = await requirePagePermission("operations:read");
   const operations = await listOperations();
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Acompanhamento da equipe</p>
-          <h1 className="page-title">Operações</h1>
+          <p className="eyebrow">{actor.role === "ADMIN" ? "Acompanhamento da equipe" : "Seu acompanhamento"}</p>
+          <h1 className="page-title">{actor.role === "ADMIN" ? "Operações" : "Minhas operações"}</h1>
           <p className="page-description">
-            Cada conversão, do registro ao encerramento.
+            {actor.role === "ADMIN" ? "Todas as conversões da equipe, do registro ao encerramento." : "Acompanhe as conversões que você registrou, do início ao encerramento."}
           </p>
         </div>
         <Link href="/simulacoes" className="button-primary w-fit">
@@ -27,7 +27,7 @@ export default async function OperationsPage() {
       <section className="surface-card mt-8 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-5">
           <h2 className="text-sm font-semibold">
-            Todas as operações{" "}
+            {actor.role === "ADMIN" ? "Todas as operações" : "Operações registradas por você"}{" "}
             <span className="ml-2 text-muted">{operations.length}</span>
           </h2>
           <span className="hidden text-xs text-muted sm:block">
@@ -71,7 +71,7 @@ export default async function OperationsPage() {
                     </span>
                   </Link>
                   <p className="mt-1 text-xs text-muted">
-                    {dateTime(operation.createdAt)} · {operation.sourceCurrency}{" "}
+                    {dateTime(operation.createdAt)} · {actor.role === "ADMIN" && `${operation.createdBy.name} · `}{operation.sourceCurrency}{" "}
                     → {operation.targetCurrency}
                   </p>
                 </div>
