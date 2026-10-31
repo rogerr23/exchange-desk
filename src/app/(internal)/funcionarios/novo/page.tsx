@@ -12,7 +12,7 @@ export default async function NewEmployeePage() {
     <>
       <Link
         href="/funcionarios"
-        className="mb-7 inline-flex items-center gap-2 text-sm text-muted hover:text-brand"
+        className="mb-7 inline-flex items-center gap-2 text-sm text-muted hover:text-brand-ink"
       >
         <Icon name="back" width="16" height="16" />
         Voltar para funcionários
@@ -27,7 +27,7 @@ export default async function NewEmployeePage() {
       <div className="mt-8 grid items-start gap-6 lg:grid-cols-[1fr_290px]">
         <EmployeeForm />
         <aside className="surface-card p-6">
-          <div className="mb-4 grid size-10 place-items-center rounded-xl bg-brand-soft text-brand">
+          <div className="mb-4 grid size-10 place-items-center rounded-xl bg-brand-soft text-brand-ink">
             <Icon name="shield" />
           </div>
           <h2 className="text-sm font-semibold">Cada acesso tem seu papel.</h2>

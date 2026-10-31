@@ -27,7 +27,7 @@ export function AppNavigation({ isAdmin }: { isAdmin: boolean }) {
           key={href}
           href={href}
           aria-current={pathname.startsWith(href) ? "page" : undefined}
-          className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${pathname.startsWith(href) ? "bg-brand-soft text-brand" : "text-muted hover:bg-white hover:text-ink"}`}
+          className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${pathname.startsWith(href) ? "bg-brand text-button-ink" : "text-muted hover:bg-surface hover:text-ink"}`}
         >
           <Icon name={icon} width="17" height="17" />
           {label}

@@ -31,14 +31,14 @@ export default async function StartPage({
             href="/funcionarios"
             className="surface-card group p-7 transition-colors hover:border-brand/40"
           >
-            <div className="mb-7 grid size-11 place-items-center rounded-xl bg-brand-soft text-brand">
+            <div className="mb-7 grid size-11 place-items-center rounded-xl bg-brand-soft text-brand-ink">
               <Icon name="users" />
             </div>
             <h2 className="text-lg font-semibold">Sua equipe, organizada.</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               Consulte os funcionários e crie novos acessos para a equipe.
             </p>
-            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand">
+            <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand-ink">
               Gerenciar funcionários
               <Icon name="arrow" width="16" height="16" />
             </span>

@@ -70,7 +70,7 @@ export default async function EmployeesPage({
                 <tr key={employee.id} className="hover:bg-canvas/40">
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand-ink">
                         {employee.name.slice(0, 1).toUpperCase()}
                       </span>
                       <span className="font-medium whitespace-nowrap">
@@ -81,7 +81,7 @@ export default async function EmployeesPage({
                   <td className="px-6 py-5 text-muted">{employee.email}</td>
                   <td className="px-6 py-5">
                     <span
-                      className={`inline-flex rounded-md px-2.5 py-1 text-xs font-medium ${employee.role === "ADMIN" ? "bg-brand-soft text-brand" : "bg-canvas text-muted"}`}
+                      className={`inline-flex rounded-md px-2.5 py-1 text-xs font-medium ${employee.role === "ADMIN" ? "bg-brand-soft text-brand-ink" : "bg-canvas text-muted"}`}
                     >
                       {employee.role === "ADMIN" ? "Administrador" : "Operador"}
                     </span>

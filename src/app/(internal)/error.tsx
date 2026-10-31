@@ -4,7 +4,7 @@ import { Icon } from "@/components/icon";
 export default function InternalError({ reset }: { reset: () => void }) {
   return (
     <section className="surface-card mx-auto max-w-lg p-10 text-center">
-      <div className="mx-auto mb-5 grid size-12 place-items-center rounded-full bg-brand-soft text-brand">
+      <div className="mx-auto mb-5 grid size-12 place-items-center rounded-full bg-brand-soft text-brand-ink">
         <Icon name="info" />
       </div>
       <h1 className="text-xl font-semibold">

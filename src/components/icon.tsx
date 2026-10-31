@@ -40,10 +40,10 @@ export function Icon({
 export function Brand({ light = false }: { light?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-2.5 text-xl font-bold tracking-tight ${light ? "text-white" : "text-ink"}`}
+      className={`inline-flex items-center gap-2.5 text-xl font-bold tracking-tight ${light ? "text-chrome-ink" : "text-ink"}`}
     >
       <span
-        className={`grid size-9 place-items-center rounded-xl ${light ? "bg-white/12 text-white" : "bg-brand text-white"}`}
+        className={`grid size-9 place-items-center rounded-xl ${light ? "bg-chrome-ink/12 text-chrome-ink" : "bg-brand text-button-ink"}`}
       >
         <svg
           width="23"
