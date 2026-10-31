@@ -1,12 +1,12 @@
-# ExchangeDesk V1
+# ExchangeDesk — evolução V1.1
 
 Sistema de gestão de operações de câmbio para equipes, com cadastro de clientes, simulações de conversão e acompanhamento de operações com histórico de status.
 
 A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo interno das operações, sem executar pagamentos ou liquidação financeira. As cotações são dados reais de referência obtidos de uma API pública.
 
-## Escopo da V1
+## Escopo implementado
 
-- Login com os perfis administrador e operador.
+- Login com um perfil por funcionário: Consultor de Câmbio, Analista de Operações, Gerente ou Administrador.
 - Cadastro de funcionários exclusivamente pelo administrador, sem cadastro público.
 - Cadastro de clientes com nome, CPF, e-mail e telefone.
 - Moedas disponíveis: BRL, USD e EUR.
@@ -136,7 +136,7 @@ Valores com duas casas decimais e taxas com oito. Cálculos com aritmética deci
 
 Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. Login, logout, bootstrap e serviços de cadastros já estão implementados.
 
-O operador possui um painel pessoal em `/inicio`, com simulações e operações próprias; listagem, detalhes, totais, auditoria e alterações de status respeitam sua autoria no servidor. O administrador acompanha as atividades de toda a equipe e é o único que cadastra e lista funcionários. Clientes continuam compartilhados. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
+O consultor possui um painel pessoal em `/inicio`, com simulações, operações e auditoria próprias, e cadastra clientes. Analista e gerente consultam operações, auditoria e clientes da equipe; apenas o analista conduz as transições do fluxo existente, sem analisar operações que criou, mesmo após mudança de função. O administrador cadastra e lista funcionários e consulta operações, auditoria e clientes vinculados para suporte. Somente o consultor cria simulações e operações; o administrador não herda essas ações. O perfil atual é conferido no banco em cada autorização. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
 
 ## Próxima entrega e decisões pendentes
 
@@ -150,9 +150,19 @@ O foco atual é o desenvolvimento local e a evolução para a V1.1, conforme [as
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md): organização técnica, dados e decisões pendentes.
 - [IMPLEMENTATION_PLAN.md](./docs/IMPLEMENTATION_PLAN.md): sequência de implementação da V1.
 - [API.md](./docs/API.md): preparação do acesso, endpoints e exemplos de uso.
+- [V1_1_DECISIONS.md](./docs/V1_1_DECISIONS.md): responsabilidades e escopos aprovados para os quatro perfis.
+- [V1_1_IMPLEMENTATION_PLAN.md](./docs/V1_1_IMPLEMENTATION_PLAN.md): base local conferida, matriz funcional e preparação da evolução dos perfis.
 
-### Painel do operador e histórico de simulações
+### Painel do consultor e histórico de simulações
 
 Aplique a migração `20261031183000_operator_workspace` com `npm run db:deploy` antes de iniciar esta versão. Cada simulação bem-sucedida passa a ser salva com seu autor, valores, taxa, fonte, referência e prazo original. Não há recuperação retroativa de simulações anteriores. `/simulacoes/historico` e `GET /api/simulacoes` mostram as 50 consultas mais recentes do escopo do usuário, com acesso à operação quando confirmada. A opção **Simular novamente** preenche as moedas e o valor, mas exige uma nova consulta e revisão. O histórico não armazena tokens nem renova a validade de 15 minutos.
 
-O painel mostra indicadores reais, cinco operações e cinco simulações recentes, além de explicações sobre cálculo, referência diária e etapas de acompanhamento. A simulação aplica apenas a taxa de referência, sem calcular tarifas, spread ou impostos; registrar e concluir operações não executa pagamentos.
+O painel do consultor mostra indicadores reais, cinco operações e cinco simulações próprias recentes; os demais perfis consultam operações da equipe, além de explicações sobre cálculo, referência diária e etapas de acompanhamento. A simulação aplica apenas a taxa de referência, sem calcular tarifas, spread ou impostos; registrar e concluir operações não executa pagamentos.
+
+### Perfis da V1.1
+
+A migração `20261031210000_v1_1_roles` implementa `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`, com Consultor como padrão no cadastro. Foi aplicada nos bancos locais da aplicação e de testes, preservando integralmente o administrador existente. Não foram criados acessos automáticos no banco da aplicação. Use `/funcionarios/novo` com o administrador para cadastrar cada funcionário na sua função.
+
+A migração recusa bancos que ainda tenham contas `OPERATOR`, exigindo atribuição explícita antes da evolução. Não converte usuários nem reescreve autoria automaticamente. Outro ambiente com operadores exige um plano de atribuição e migração próprio antes de executar `db:deploy`.
+
+Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite, aprovação/rejeição e processamento simulado ainda dependem da definição dos seus estados e regras. Edição de perfil, desativação e recuperação de acesso também continuam pendentes.

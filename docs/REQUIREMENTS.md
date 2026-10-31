@@ -8,29 +8,23 @@ O ExchangeDesk é uma aplicação de gestão interna, com acesso restrito a func
 
 Os requisitos abaixo refletem o escopo fechado. Detalhes apresentados como proposta ou pendência não devem ser tratados como decisões já aprovadas.
 
-As decisões já aprovadas para a evolução V1.1 estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Elas descrevem o destino da evolução; os dois perfis documentados abaixo continuam representando a implementação atual da V1.
+Os quatro perfis da V1.1 estão implementados sobre o fluxo de operações da V1. As responsabilidades futuras de propostas, aceite e processamento estão registradas em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md) e ainda dependem de detalhamento.
 
 ## 2. Perfis e acesso
 
-| Perfil | Responsabilidade definida |
-| --- | --- |
-| Administrador | Acessar o sistema e cadastrar funcionários |
-| Operador | Acessar o sistema para trabalhar nos fluxos operacionais |
-| Cliente | Ser vinculado às operações; não possui login |
+Cada funcionário tem exatamente um perfil. Clientes não possuem login. A aplicação representa uma única equipe.
 
-A V1 representa uma única equipe, sem separação por empresa ou por carteira de clientes.
+| Ação | Consultor | Analista | Gerente | Administrador |
+| --- | --- | --- | --- | --- |
+| Cadastrar e listar funcionários | Não | Não | Não | Sim |
+| Cadastrar clientes | Sim | Não | Não | Não |
+| Consultar clientes | Todos | Todos | Todos | Vinculados a operações |
+| Criar simulações e consultar seu histórico | Próprias | Não | Não | Não |
+| Criar operações pelo fluxo existente | Sim | Não | Não | Não |
+| Consultar operações, totais e auditoria | Próprias | Equipe | Equipe | Equipe, para suporte |
+| Alterar status no fluxo existente | Não | Exceto operações criadas por si | Não | Não |
 
-| Ação | Administrador | Operador |
-| --- | --- | --- |
-| Cadastrar e listar funcionários | Sim | Não |
-| Cadastrar e consultar clientes | Sim | Sim |
-| Simular conversões | Sim | Sim |
-| Criar e consultar operações | Toda a equipe | Somente próprias |
-| Alterar status, respeitando o fluxo | Toda a equipe | Somente próprias |
-| Consultar auditoria das operações | Toda a equipe | Somente próprias |
-| Consultar histórico de simulações | Toda a equipe | Somente próprias |
-
-Nenhuma dessas ações é permitida sem sessão. O perfil usado para autorizar vem da sessão verificada no servidor, nunca de um campo enviado pelo navegador. Listar funcionários retorna apenas identificador, nome, e-mail e perfil; nunca hash ou senha.
+Nenhuma ação é permitida sem sessão. O servidor consulta o perfil atual do funcionário no banco, sem confiar em perfil enviado pelo navegador ou em um JWT antigo. A proibição de analisar operação própria considera a identidade e continua valendo após mudança de função. Listar funcionários retorna somente identificador, nome, e-mail e perfil, sem hash ou senha.
 
 ## 3. Requisitos funcionais
 
@@ -48,14 +42,14 @@ O login usa e-mail e senha pelo provider Credentials do Auth.js. A sessão usa J
 ### RF02 — Cadastro de funcionários
 
 - Permitir que somente o administrador cadastre funcionários.
-- Associar cada funcionário a um perfil: administrador ou operador.
-- Dados obrigatórios: nome, e-mail, senha e perfil; o perfil padrão é operador.
+- Associar cada funcionário a um dos quatro perfis, sem acúmulo de funções.
+- Dados obrigatórios: nome, e-mail, senha e perfil; o perfil padrão é Consultor de Câmbio.
 - Normalizar o e-mail para minúsculas, remover espaços nas extremidades e exigir unicidade.
 - Aceitar senhas entre 12 e 128 caracteres, sem regras de composição e sem remover espaços da senha.
 - Criar o primeiro administrador por um comando local controlado, com nome, e-mail e senha fornecidos pelo ambiente, sem credenciais fixas. O comando deve recusar execução se já existir um administrador, sem sobrescrever usuários.
 - O administrador define a senha ao cadastrar um funcionário e a entrega manualmente para acesso ao sistema; não há envio de e-mail nem convite público.
 
-**Aceite:** o administrador consegue cadastrar um funcionário válido; uma tentativa de cadastro feita por operador é recusada no servidor, mesmo por acesso direto.
+**Aceite:** o administrador consegue cadastrar um funcionário válido; uma tentativa de cadastro feita por qualquer outro perfil é recusada no servidor, mesmo por acesso direto.
 
 Edição, desativação, recuperação de acesso e gestão de sessões não foram fechadas e não são exigências adicionais da V1 neste documento.
 
@@ -139,7 +133,7 @@ Auditoria completa de login e de todas as alterações cadastrais não faz parte
 - Manter testes essenciais com Vitest para conversão, transições de status, validações, autorização, falhas do provedor e integridade/expiração da referência de simulação. Sem meta de cobertura, teste por componente ou repetição da mesma regra em várias camadas; a política de execução está em ARCHITECTURE.md.
 - Verificar a transação de operação/auditoria e conflitos de atualização em testes de integração com banco de teste.
 
-O painel apresenta as quantidades de operações Pendentes, Em análise, Concluídas e Canceladas, o total de operações e o total de simulações salvas. O operador vê somente sua autoria; o administrador vê a equipe. Inclui cinco operações e cinco simulações recentes, atalhos e orientações sobre cálculo, prazo, referência diária e transições. Os números vêm do banco e exibem zero quando não há registros. Gráficos e a dependência Recharts ficam adiados; não são critérios de conclusão da V1 atual.
+O painel apresenta as quantidades de operações Pendentes, Em análise, Concluídas e Canceladas, o total de operações e o total de simulações salvas. O consultor vê somente suas operações e simulações; os demais perfis veem operações da equipe, sem histórico de simulações. Inclui cinco operações recentes e, para consultores, cinco simulações próprias, atalhos e orientações sobre cálculo, prazo, referência diária e transições. Os números vêm do banco e exibem zero quando não há registros. Gráficos e a dependência Recharts ficam adiados; não são critérios de conclusão da V1 atual.
 
 ## 5. Pendências antes da implementação correspondente
 

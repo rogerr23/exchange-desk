@@ -2,7 +2,9 @@
 
 A ordem abaixo organiza a implementação do escopo documentado. As propostas e pendências dos documentos continuam em aberto; esta sequência não as transforma em decisões aprovadas.
 
-Para a evolução V1.1, consultar [as decisões aprovadas](./V1_1_DECISIONS.md): um perfil por funcionário entre Consultor de Câmbio, Analista de Operações, Gerente e Administrador, sem acúmulo de funções. Essa evolução ainda não está implementada; o andamento abaixo descreve a V1.
+Para a evolução V1.1, consultar [as decisões aprovadas](./V1_1_DECISIONS.md): um perfil por funcionário entre Consultor de Câmbio, Analista de Operações, Gerente e Administrador, sem acúmulo de funções. Os quatro perfis, permissões, navegação e painéis já estão implementados sobre o fluxo existente; os novos fluxos ainda dependem de definição. O andamento abaixo preserva a referência da V1.
+
+A preparação da V1.1, com a conferência da base local, a matriz funcional e as pendências para implementar os perfis, está em [V1_1_IMPLEMENTATION_PLAN.md](./V1_1_IMPLEMENTATION_PLAN.md).
 
 A implementação começa pela API e pelos serviços no próprio Next.js. As telas vêm após os fluxos de servidor. Os testes essenciais acompanham cada fluxo: autorização, conversão/arredondamento, transições, falha do provedor, integridade/expiração da simulação e consistência de operação/auditoria, incluindo conflito de atualização. Sem meta de cobertura, teste por arquivo ou duplicação da mesma regra em várias camadas. Telas e comportamento visual serão conferidos manualmente; a política enxuta de testes e execução está em ARCHITECTURE.md, seção 8.
 

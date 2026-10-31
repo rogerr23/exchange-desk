@@ -1,0 +1,104 @@
+# Plano de implementação — ExchangeDesk V1.1
+
+As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; os novos fluxos permanecem pendentes.
+
+## 1. Referência da V1
+
+Conferência realizada em 31/10/2026, a partir do commit `1cfd0c6`, com árvore de trabalho inicialmente limpa.
+
+| Item | Resultado local |
+| --- | --- |
+| Ambiente | Node.js 22.14.0; PostgreSQL do Compose iniciado e saudável |
+| Migrações da aplicação | As três aplicadas, concluídas e sem rollback; checksums iguais aos arquivos versionados |
+| Funcionários | Um `ADMIN`; nenhum `OPERATOR` |
+| Dados operacionais | Nenhum cliente, simulação, operação ou evento de auditoria |
+| Operações legadas abertas | Nenhuma neste banco |
+| Banco de testes | A migração `20261031183000_operator_workspace` estava pendente e foi aplicada exclusivamente no banco descartável |
+
+A consulta ao banco da aplicação foi feita em transação de leitura, usando apenas contagens e metadados de migrações. Não foram alterados funcionários ou dados operacionais. O inventário é uma fotografia deste ambiente; não define a migração de outros bancos nem substitui uma cópia de segurança antes de futuras alterações.
+
+Validação da referência: lint, tipos, schema Prisma e build passaram; 40 testes unitários e 17 testes de integração passaram. A integração utilizou exclusivamente o banco descartável e verificou também login e permissões por HTTP real. Houve aviso de depreciação do `pg` sobre consultas simultâneas no mesmo cliente, sem falha na execução. Esta etapa não realizou nova conferência visual das telas.
+
+As migrações existentes são `20261020190000_init`, `20261031183000_operator_workspace` e `20261031200000_operation_confirmation`. No banco local, a migração de histórico foi aplicada depois da migração de confirmação; ambas estão concluídas. Não renomear ou editar migrações já aplicadas. A evolução usará novas migrações.
+
+### Comportamento preservado como referência
+
+- `ADMIN` pode executar as ações operacionais e gerenciar funcionários; `OPERATOR` acessa suas próprias operações, totais, auditoria e simulações. Clientes são compartilhados.
+- Operações seguem `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`.
+- Confirmação é idempotente, os valores e a cotação são preservados, e operação/auditoria são gravadas atomicamente.
+- O histórico de simulações é persistido por autor e não renova o prazo da referência assinada.
+
+Essa referência descreve a V1 e não deve ser usada como matriz dos novos perfis.
+
+## 2. Matriz funcional da V1.1
+
+| Ação ou escopo | Consultor de Câmbio | Analista de Operações | Gerente | Administrador |
+| --- | --- | --- | --- | --- |
+| Cadastrar clientes | Sim | Não | Não | Não |
+| Simular conversões | Sim | Não | Não | Não |
+| Consultar simulações individuais | Apenas próprias | Não | Não | Não |
+| Consultar clientes | Todos | Todos | Todos | Apenas vinculados a operações |
+| Consultar auditoria de operações | Próprias | Equipe | Equipe | Equipe, para suporte |
+| Criar propostas e registrar aceite simulado | Sim | Não | Não | Não |
+| Consultar propostas | Próprias | Solicitações da equipe para conferência | Registros da equipe para supervisão | Escopo de propostas ainda a definir |
+| Consultar operações | Próprias | Equipe | Equipe | Equipe, para suporte |
+| Aprovar ou rejeitar solicitações | Não | Sim, exceto as criadas pelo próprio funcionário | Não | Não |
+| Iniciar processamento simulado | Não | Sim | Não | Não |
+| Consultar indicadores da equipe | Não | Painel operacional a detalhar | Sim | Painel de suporte a detalhar |
+| Cadastrar funcionários e gerenciar acessos | Não | Não | Não | Sim |
+
+A leitura de operações pelo administrador foi aprovada em 31/10/2026. Ela não concede aprovação, rejeição, processamento, criação de propostas, aceite, cadastro de clientes ou simulação. Também foram aprovados e implementados os escopos de clientes e auditoria da matriz acima.
+
+As ações de proposta, aceite, aprovação e processamento são responsabilidades aprovadas, mas seus estados e endpoints ainda serão especificados. Os status da V1 não devem ser renomeados automaticamente para representar etapas diferentes da V1.1.
+
+## 3. Entrega implementada: perfis, acesso e navegação
+
+Identificadores técnicos implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`. Cada funcionário terá um único valor em `User.role`.
+
+### Autenticação e autorização
+
+- Separar funcionário autenticado de permissão de negócio. Atualmente o layout interno e a página de login usam `customers:read` como condição de entrada; isso impediria o acesso de um administrador sem permissão de clientes.
+- Atualizar o enum Prisma, o tipo de domínio, a validação de cadastro, o formulário de funcionários e o reconhecimento de perfis na sessão Auth.js em uma entrega coerente.
+- Continuar consultando o perfil atual no banco em cada autorização; a sessão JWT não será a referência para conceder permissões após mudança de função.
+- Separar leitura de simulações de sua criação. Hoje o histórico e seus contadores exigem `quotes:simulate`; a leitura deverá ter sua própria permissão e escopo.
+- Substituir os filtros `role === ADMIN` por regras explícitas de ação e alcance dos registros. Aplicar o mesmo alcance a listagem, detalhes por ID, totais e auditoria, tanto nas páginas quanto na API.
+- Dividir a permissão genérica de mudança de status nas ações do novo fluxo quando os estados forem definidos. Conferir `createdById` ao aprovar, inclusive se o autor tiver mudado de perfil.
+
+### Navegação e painéis
+
+- Trocar a navegação baseada em `isAdmin` por links correspondentes às permissões do perfil.
+- Consultor: painel pessoal com seus registros e atalhos de atendimento.
+- Analista: entrada para conferência das solicitações da equipe e processamento, conforme os estados a definir.
+- Gerente: consulta de registros e indicadores da equipe.
+- Administrador: funcionários, gestão de acessos e consulta de operações para suporte.
+- Evitar que o painel carregue serviços sem permissão para o perfil. Hoje `/inicio` carrega operações e simulações para todos.
+- Ajustar os redirecionamentos de acesso negado e a mensagem atual, que menciona apenas a exclusividade do gerenciamento de funcionários.
+
+### Migração dos dados
+
+Foi aprovado preservar o administrador como `ADMIN` e cadastrar contas distintas para as demais funções. A migração `20261031210000_v1_1_roles` foi aplicada nos bancos locais da aplicação e de testes, preservando integralmente a conta existente. Nenhuma conta automática ou dado de demonstração foi criado no banco da aplicação. O cadastro dos demais perfis está disponível em `/funcionarios/novo`.
+
+A conversão de eventuais contas `OPERATOR` em outros ambientes depende de atribuição explícita. Operações legadas abertas também precisam de regra antes de migrar um banco que as contenha. A migração deve preservar IDs, autoria, vínculos, valores e histórico.
+
+### Verificação da entrega de perfis
+
+Cobrir os quatro perfis com testes essenciais de autorização, escopo por registro e HTTP direto, incluindo acesso negado para mutações administrativas e operacionais, navegação após login e sessão já existente após mudança de perfil. A restrição de aprovação da própria solicitação será verificada junto à implementação dessa ação. Conferir manualmente os painéis e links em desktop e celular, sem testes de componentes ou meta de cobertura.
+
+## 4. Decisões antes das implementações correspondentes
+
+1. Leitura de clientes e auditoria: aprovada e implementada conforme a matriz.
+2. Administrador local: preservado conforme aprovação. Atribuição de contas `OPERATOR` em outros ambientes continua exigindo definição explícita; a migração recusa bancos que ainda contenham essas contas.
+3. Definir o fluxo de propostas, aceite, solicitação, aprovação/rejeição e processamento simulado, incluindo autoria, eventos e transições.
+4. Definir validade comercial e recuperação de processamento; os 15 minutos da simulação V1 não são automaticamente a validade de uma proposta.
+5. Detalhar quais ações compõem a gestão de acessos (por exemplo, troca de perfil e desativação). A V1 só oferece cadastro e consulta de funcionários.
+
+## 5. Andamento
+
+- Referência local da V1 e inventário: conferidos.
+- Banco descartável de testes: migrações alinhadas.
+- Matriz funcional: leitura de operações, clientes e auditoria aprovada e implementada.
+- Quatro perfis: implementados no banco, domínio, sessão, autorização, cadastro, navegação e painéis.
+- Fluxo existente: registro pelo consultor e transições pelo analista; análise da própria operação bloqueada por identidade, inclusive após mudança de função.
+- Validação: 40 testes unitários e 20 de integração passaram, incluindo migração com preservação de vínculos, escopos, HTTP dos quatro perfis e sessão existente após mudança de função; lint, tipos, schema e build passaram.
+- Conferência visual: login e painel dos quatro perfis em desktop; detalhes com auditoria e ações exclusivas do analista; layouts de 390 e 320 pixels sem rolagem horizontal da página. Foram usadas apenas contas temporárias no banco descartável, removidas ao concluir; o servidor temporário foi encerrado.
+- Novos fluxos de proposta, aceite e processamento: ainda não implementados. Próximo passo: definir estados, ações, validade comercial e eventos do ciclo de propostas e solicitações.

@@ -1,6 +1,6 @@
 # Decisões aprovadas — ExchangeDesk V1.1
 
-Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. A aplicação atual ainda utiliza os perfis `ADMIN` e `OPERATOR` da V1.
+Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite e processamento simulado ainda não foram implementados.
 
 ## Acesso — um perfil por funcionário
 
@@ -22,8 +22,29 @@ Decisão aprovada em 31/10/2026: cada conta de funcionário terá exatamente um 
 
 Esta aprovação fecha a escolha de um perfil por funcionário e as responsabilidades acima. Não aprova automaticamente todas as propostas do plano externo da V1.1.
 
-Antes das implementações correspondentes, detalhar o escopo de leitura por registro (inclusive suporte administrativo), a atribuição dos usuários atuais, o tratamento de operações legadas abertas, a validade comercial e as regras de processamento e recuperação. Os identificadores técnicos dos novos perfis também serão definidos na implementação.
+Antes das implementações correspondentes, detalhar o tratamento de operações legadas abertas em outros ambientes, a validade comercial, as ações de gestão de acessos e as regras de processamento e recuperação. Identificadores implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`.
+
+## Leitura por perfil e suporte administrativo
+
+Escopo confirmado em 31/10/2026:
+
+- Consultor de Câmbio consulta suas próprias propostas e operações.
+- Analista de Operações consulta solicitações e operações da equipe para conferência.
+- Gerente consulta registros e indicadores da equipe para supervisão.
+- Simulações individuais ficam restritas ao consultor autor.
+- Administrador também pode consultar operações da equipe para suporte, além de cadastrar funcionários e gerenciar acessos. Essa leitura não concede ações comerciais ou operacionais.
+
+Detalhamento aprovado em 31/10/2026:
+
+- Consultor consulta todos os clientes e a auditoria das suas próprias operações.
+- Analista e gerente consultam clientes e auditoria das operações da equipe.
+- Administrador consulta somente clientes vinculados às operações e a auditoria das operações, para suporte; não cadastra clientes.
+- A conta administrativa local é mantida como `ADMIN`. As demais funções serão cadastradas em contas separadas, sem acessos automáticos.
+
+O acesso administrativo a propostas continua pendente. A separação de perfis foi aplicada ao fluxo existente: o consultor registra a operação e o analista conduz sua análise, sem analisar operações criadas por si. Isso não define os estados futuros de proposta, aceite, aprovação/rejeição e processamento.
 
 ## Próxima etapa
 
-Consolidar a referência da V1 e conferir migrações e dados existentes; depois detalhar a matriz de acesso e preparar a evolução dos perfis, incluindo autenticação, autorização, navegação e painéis. As alterações de banco e código ainda não foram realizadas por este registro.
+A referência local da V1 e os dados existentes foram conferidos. As três migrações da V1 foram conferidas; a migração dos perfis também foi aplicada nos bancos locais da aplicação e de testes. Neste ambiente existe apenas um administrador e nenhum registro operacional.
+
+O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. A próxima etapa é definir o ciclo de propostas, aceite e solicitações antes de implementar os novos estados e ações.

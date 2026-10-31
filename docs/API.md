@@ -8,7 +8,7 @@ Autenticação, cadastros, simulações e operações com auditoria estão dispo
 2. Gere `AUTH_SECRET` com o comando indicado no `.env.example`. Use `AUTH_URL=http://localhost:3000` no desenvolvimento local.
 3. Preencha temporariamente `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` no `.env`. Escolha a senha de 12 a 128 caracteres; não há senha padrão.
 4. Execute `npm run admin:create`. O comando cria um administrador apenas se ainda não existir nenhum; não sobrescreve funcionários. Remova as três variáveis de bootstrap após a criação.
-5. Execute `npm run dev` e abra `/login`. Após entrar, administradores podem usar `/funcionarios` e `/funcionarios/novo`; ambos os perfis acessam `/inicio`.
+5. Execute `npm run dev` e abra `/login`. Após entrar, administradores podem usar `/funcionarios` e `/funcionarios/novo`; os quatro perfis acessam `/inicio`, com conteúdo e links conforme suas permissões.
 
 O comando de bootstrap é local e usa a condição Node `react-server` apenas para importar os módulos marcados com `server-only`. Isso não cria uma rota pública de cadastro.
 
@@ -26,25 +26,25 @@ A tela `/login` usa uma Server Action que valida os dados e chama `signIn` do Au
 
 ## Cadastros
 
-Todos os endpoints abaixo exigem sessão. Os serviços consultam o funcionário no banco para obter seu perfil atual. Apenas administrador pode cadastrar e listar funcionários. Os dois perfis podem cadastrar e consultar clientes da equipe.
+Todos os endpoints abaixo exigem sessão. Os serviços consultam o funcionário no banco para obter seu perfil atual. Apenas administrador pode cadastrar e listar funcionários. Somente o consultor cadastra clientes. Consultor, analista e gerente consultam todos os clientes; o administrador consulta apenas os vinculados a operações, inclusive por ID.
 
 | Método e rota | Permissão | Resultado |
 | --- | --- | --- |
 | `GET /api/funcionarios` | Administrador | Lista com id, nome, e-mail e perfil |
 | `POST /api/funcionarios` | Administrador | Cria funcionário e retorna seus dados públicos |
-| `GET /api/clientes` | Administrador ou operador | Lista os clientes |
-| `POST /api/clientes` | Administrador ou operador | Cria cliente |
-| `GET /api/clientes/:id` | Administrador ou operador | Consulta um cliente; retorna 404 se não existir |
+| `GET /api/clientes` | Quatro perfis, conforme escopo | Lista os clientes disponíveis |
+| `POST /api/clientes` | Consultor | Cria cliente |
+| `GET /api/clientes/:id` | Quatro perfis, conforme escopo | Consulta um cliente; 404 se ausente ou fora do escopo |
 
 As listagens retornam os registros da equipe, em ordem de criação decrescente. Paginação não está implementada nesta etapa. Todas as respostas de cadastro usam `Cache-Control: no-store`.
 
 ### Cadastrar funcionário
 
-Envie JSON com `name`, `email`, `password` e, opcionalmente, `role` (`ADMIN` ou `OPERATOR`, padrão `OPERATOR`). O administrador escolhe a senha e a entrega manualmente para acesso ao sistema. E-mail normalizado é único; campos extras são recusados.
+Envie JSON com `name`, `email`, `password` e, opcionalmente, `role` (`CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` ou `ADMIN`; padrão `CONSULTANT`). O administrador escolhe a senha e a entrega manualmente para acesso ao sistema. E-mail normalizado é único; campos extras são recusados.
 
 ### Cadastrar cliente
 
-Após entrar, este exemplo pode ser executado no console do navegador na página da aplicação:
+Após entrar como consultor, este exemplo pode ser executado no console do navegador na página da aplicação:
 
 ```js
 const response = await fetch("/api/clientes", {
@@ -80,7 +80,7 @@ Mutações exigem JSON e recusam o cabeçalho `Origin` quando diferente da orige
 
 ## Simulações
 
-`POST /api/simulacoes` exige sessão de administrador ou operador, JSON e a mesma proteção de origem dos cadastros. Exemplo após entrar na aplicação:
+`POST /api/simulacoes` exige sessão de Consultor de Câmbio, JSON e a mesma proteção de origem dos cadastros. Exemplo após entrar na aplicação:
 
 ```js
 const response = await fetch("/api/simulacoes", {
@@ -117,11 +117,13 @@ Cada simulação bem-sucedida salva um registro de histórico associado ao funci
 
 ### Histórico de simulações
 
-`GET /api/simulacoes` exige sessão e retorna `{ data: [...] }`, com `Cache-Control: no-store`. Retorna até 50 simulações mais recentes por emissão: somente as do próprio operador ou todas para o administrador. Inclui id, autoria pública (id e nome), valores decimais como strings, taxa, fonte, referência diária, instante de consulta, emissão, expiração e `operationId` (nulo enquanto não confirmada). Não retorna token nem chave de confirmação. Simulações anteriores à migração não são recuperadas. O histórico permanece após expirar e não permite renovar ou confirmar um token vencido; **Simular novamente** exige nova consulta e revisão.
+`GET /api/simulacoes` exige sessão de consultor e retorna `{ data: [...] }`, com `Cache-Control: no-store`. Retorna até 50 simulações mais recentes por emissão: somente as do próprio consultor. Os demais perfis recebem 403. Inclui id, autoria pública (id e nome), valores decimais como strings, taxa, fonte, referência diária, instante de consulta, emissão, expiração e `operationId` (nulo enquanto não confirmada). Não retorna token nem chave de confirmação. Simulações anteriores à migração não são recuperadas. O histórico permanece após expirar e não permite renovar ou confirmar um token vencido; **Simular novamente** exige nova consulta e revisão.
 
 ## Operações e auditoria
 
-Todas as rotas exigem sessão de administrador ou operador e retornam `Cache-Control: no-store`. Operadores só listam, consultam detalhes e auditoria, contam ou alteram operações criadas por eles; administradores acessam toda a equipe. IDs fora do escopo do operador retornam 404, inclusive em alterações de status. Mutações exigem JSON e recusam `Origin` diferente da aplicação.
+Esta entrega mantém os estados da V1. Propostas, aceite e processamento simulado ainda não possuem endpoints próprios.
+
+Todas as rotas exigem sessão e retornam `Cache-Control: no-store`. Consultores criam operações e só listam, consultam detalhes, auditoria e totais de sua autoria. Analista, gerente e administrador consultam a equipe. IDs fora do escopo de leitura retornam 404. Somente analistas alteram status no fluxo existente; os demais perfis recebem 403. O analista não pode analisar uma operação que criou, mesmo após mudança de perfil: retorna 403 `SELF_REVIEW_FORBIDDEN`, sem alterar status ou auditoria. Mutações exigem JSON e recusam `Origin` diferente da aplicação.
 
 | Método e rota | Resultado |
 | --- | --- |
