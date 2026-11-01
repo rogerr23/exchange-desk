@@ -17,8 +17,13 @@ const operationSelect = {
   customer: { select: { id: true, name: true, fictionalCpf: true } },
   createdBy: { select: { id: true, name: true } },
 } satisfies Prisma.ExchangeOperationSelect;
-const detailSelect = {
+export const operationDetailSelect = {
   ...operationSelect,
+  processingAttemptCount: true,
+  processingAttempts: {
+    orderBy: { number: "desc" },
+    select: { id: true, number: true, scenario: true, startedAt: true, readyAt: true, finishedAt: true, failureReason: true, startedBy: { select: { id: true, name: true } } },
+  },
   auditEvents: {
     orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
     select: {
@@ -29,7 +34,7 @@ const detailSelect = {
 } satisfies Prisma.ExchangeOperationSelect;
 
 type OperationRow = Prisma.ExchangeOperationGetPayload<{ select: typeof operationSelect }>;
-function serializeOperation<T extends OperationRow>(operation: T) {
+export function serializeOperation<T extends OperationRow>(operation: T) {
   return {
     ...operation,
     sourceAmount: operation.sourceAmount.toFixed(2),
@@ -55,7 +60,7 @@ export async function listOperations(limit?: number) {
 export async function getOperationSummary() {
   const actor = await requirePermission("operations:read");
   const groups = await getDb().exchangeOperation.groupBy({ where: operationScope(actor), by: ["status"], _count: { _all: true } });
-  const counts = { PENDING: 0, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0 };
+  const counts = { PENDING: 0, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0, PROCESSING: 0, FAILED: 0 };
   for (const group of groups) counts[group.status] = group._count._all;
   return counts;
 }
@@ -64,7 +69,7 @@ export async function getOperation(inputId: string) {
   const actor = await requirePermission("operations:read");
   await requirePermission("audit:read");
   const id = operationIdSchema.parse(inputId);
-  const operation = await getDb().exchangeOperation.findFirst({ where: { id, ...operationScope(actor) }, select: detailSelect });
+  const operation = await getDb().exchangeOperation.findFirst({ where: { id, ...operationScope(actor) }, select: operationDetailSelect });
   if (!operation) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
   return serializeOperation(operation);
 }
@@ -80,7 +85,7 @@ export async function changeOperationStatus(inputId: string, input: unknown) {
     const scope = operationScope(actor);
     const current = await tx.exchangeOperation.findFirst({ where: { id, ...scope }, select: { status: true, createdById: true, request: { select: { id: true } } } });
     if (!current) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
-    if (current.request) throw new AppError(409, "PROCESSING_NOT_AVAILABLE", "Esta operação aguarda a etapa de processamento simulado, ainda indisponível.");
+    if (current.request) throw new AppError(409, "PROCESSING_REQUIRED", "Use as ações de processamento simulado para esta operação aprovada.");
     if (current.createdById === actor.id) {
       throw new AppError(403, "SELF_REVIEW_FORBIDDEN", "Você não pode conduzir a análise de uma operação que criou.");
     }
@@ -92,7 +97,7 @@ export async function changeOperationStatus(inputId: string, input: unknown) {
     await tx.operationAuditEvent.create({
       data: { operationId: id, actorId: actor.id, action: "STATUS_CHANGED", previousStatus: expectedStatus, newStatus: status },
     });
-    return tx.exchangeOperation.findUniqueOrThrow({ where: { id }, select: detailSelect });
+    return tx.exchangeOperation.findUniqueOrThrow({ where: { id }, select: operationDetailSelect });
   });
   return serializeOperation(operation);
 }

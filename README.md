@@ -36,7 +36,8 @@ A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo inter
 4. Consulta a cotação e visualiza a simulação, a fonte e o horário da referência.
 5. Salva uma proposta com os valores, a cotação e o prazo original da simulação.
 6. Registra separadamente o aceite simulado, gerando uma solicitação **Aguardando análise**.
-7. A criação da operação dependerá da aprovação pelo analista, disponível em uma próxima entrega. O fluxo antigo de operações continua disponível para registros já existentes.
+7. O analista aprova ou rejeita a solicitação. A aprovação cria uma única operação; a rejeição exige motivo.
+8. Na operação aprovada, o analista inicia o processamento simulado, escolhendo sucesso ou falha. Pode retomar uma tentativa interrompida ou iniciar outra após falha. O fluxo antigo continua disponível para operações legadas.
 
 O status Concluída indica o encerramento do fluxo interno da operação; pagamentos e liquidação financeira são externos ao sistema.
 
@@ -166,10 +167,10 @@ A migração `20261031210000_v1_1_roles` implementa `CONSULTANT`, `OPERATIONS_AN
 
 A migração recusa bancos que ainda tenham contas `OPERATOR`, exigindo atribuição explícita antes da evolução. Não converte usuários nem reescreve autoria automaticamente. Outro ambiente com operadores exige um plano de atribuição e migração próprio antes de executar `db:deploy`.
 
-Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite e solicitações aguardando análise já estão disponíveis. Aprovação/rejeição e processamento simulado ainda dependem da definição dos seus estados e regras. Edição de perfil, desativação e recuperação de acesso também continuam pendentes.
+Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite e solicitações aguardando análise já estão disponíveis. Aprovação/rejeição e processamento simulado com recuperação estão implementados. Edição de perfil, desativação e recuperação de acesso também continuam pendentes.
 
 ### Propostas e aceite simulado
 
 Aplique `20261031220000_proposals_and_requests` com `npm run db:deploy`. A tela de simulação agora salva uma proposta; o aceite é uma segunda ação explícita nos detalhes e gera uma solicitação única. O prazo continua sendo o restante dos 15 minutos desde a simulação, sem renovação. Solicitações aceitas preservam os valores para análise mesmo depois desse prazo.
 
-Consultores veem seus registros; analistas veem solicitações da equipe e propostas já aceitas; gerentes e administradores consultam a equipe. A criação direta por `POST /api/operacoes` foi bloqueada com `APPROVAL_REQUIRED`, pois a operação dependerá de aprovação. A decisão do analista ainda não está disponível nesta entrega. Regras e próximos passos em [V1_1_PROPOSAL_FLOW.md](./docs/V1_1_PROPOSAL_FLOW.md).
+Consultores veem seus registros; analistas veem solicitações da equipe e propostas já aceitas; gerentes e administradores consultam a equipe. A criação direta por `POST /api/operacoes` foi bloqueada com `APPROVAL_REQUIRED`, pois a operação dependerá de aprovação. A decisão do analista cria a operação somente na aprovação. O processamento simulado registra tentativas e permite recuperação, conforme [V1_1_PROCESSING_FLOW.md](./docs/V1_1_PROCESSING_FLOW.md). Regras e próximos passos em [V1_1_PROPOSAL_FLOW.md](./docs/V1_1_PROPOSAL_FLOW.md).

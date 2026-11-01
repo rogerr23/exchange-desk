@@ -1,6 +1,6 @@
 # Decisões aprovadas — ExchangeDesk V1.1
 
-Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite simulado e solicitações aguardando análise estão implementados; aprovação/rejeição estão implementadas; processamento simulado ainda não está disponível.
+Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite simulado e solicitações aguardando análise estão implementados; aprovação/rejeição estão implementadas; processamento simulado e recuperação também estão implementados, com detalhamento técnico em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
 
 ## Acesso — um perfil por funcionário
 
@@ -22,7 +22,7 @@ Decisão aprovada em 31/10/2026: cada conta de funcionário terá exatamente um 
 
 Esta aprovação fecha a escolha de um perfil por funcionário e as responsabilidades acima. Não aprova automaticamente todas as propostas do plano externo da V1.1.
 
-Antes das implementações correspondentes, detalhar o tratamento de operações legadas abertas em outros ambientes, a validade comercial, as ações de gestão de acessos e as regras de processamento e recuperação. Identificadores implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`.
+Antes das implementações correspondentes, detalhar o tratamento de operações legadas abertas em outros ambientes, a validade comercial, as ações de gestão de acessos. O processamento e a recuperação implementados estão detalhados no documento de fluxo. Identificadores implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`.
 
 ## Leitura por perfil e suporte administrativo
 
@@ -47,7 +47,7 @@ O acesso administrativo a propostas e solicitações para suporte foi aprovado, 
 
 A referência local da V1 e os dados existentes foram conferidos. As três migrações da V1 foram conferidas; a migração dos perfis também foi aplicada nos bancos locais da aplicação e de testes. Neste ambiente existe apenas um administrador e nenhum registro operacional.
 
-O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). A próxima etapa é definir o processamento simulado e sua recuperação.
+O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). O processamento simulado e a recuperação estão implementados. A próxima etapa é detalhar a gestão de acessos.
 
 ## Ciclo de propostas e solicitações
 

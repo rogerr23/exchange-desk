@@ -151,7 +151,7 @@ Operações já existentes mantêm valores, autoria e histórico. Consultores co
 | `GET /api/operacoes/:id` | Detalhes e histórico, ou 404 fora do escopo |
 | `PATCH /api/operacoes/:id/status` | Transição legada com auditoria atômica |
 
-A aprovação gera uma operação `PENDING`, com vínculo `request: { id }` para a solicitação de origem. As transições legadas não se aplicam a essas operações: retornam 409 `PROCESSING_NOT_AVAILABLE`. O processamento simulado será implementado na próxima etapa.
+A aprovação gera uma operação `PENDING`, com vínculo `request: { id }` para a solicitação de origem. As transições legadas não se aplicam a essas operações: retornam 409 `PROCESSING_REQUIRED`. O processamento simulado usa os endpoints específicos abaixo.
 
 A resposta usa `{ data: ... }`. Cada operação inclui identificadores, cliente (id, nome, CPF cadastrado), funcionário criador (id e nome), moedas, valores, taxa, referência e status, com datas de criação/atualização. Valores são strings com duas casas e a taxa com oito. `quoteReferenceDate` preserva `YYYY-MM-DD`; os demais instantes são ISO 8601. Detalhes e alteração também incluem `auditEvents` com ação, status anterior/novo, instante e autor (id e nome). Nunca retorna senha, hash de senha, token ou chave interna de confirmação.
 
@@ -186,3 +186,33 @@ Motivo obrigatório na rejeição, de 1 a 1000 caracteres após trim. Campos ext
 Aprovação/rejeição são definitivas. Reenvio da mesma decisão e motivo normalizado retorna o resultado original; decisão diferente ou motivo alterado retorna 409 `REQUEST_ALREADY_DECIDED`. A aprovação cria uma única operação com os valores aceitos, autoria comercial do consultor e evento de criação atribuído ao analista. Rejeição não cria operação. O prazo de aceite não limita a decisão posterior. Tudo é persistido em transação com os eventos `APPROVED`/`REJECTED` no histórico da proposta; falha de auditoria desfaz a decisão.
 
 Outros perfis recebem 403; sem sessão, 401; solicitação inexistente, 404. O autor recebe 403 `SELF_REVIEW_FORBIDDEN` mesmo que tenha passado a analista. A decisão não modifica operações legadas nem executa processamento ou pagamento.
+
+## Processamento simulado e recuperação
+
+Somente analistas podem usar estas rotas, sem processar operações de sua autoria (`SELF_REVIEW_FORBIDDEN`, 403). As operações precisam estar vinculadas a uma solicitação aprovada (`APPROVED_REQUEST_REQUIRED`, 409). Mutações verificam sessão e origem. Os demais perfis recebem 403; sem sessão, 401; operação inexistente, 404. Campos extras e entradas inválidas retornam 400.
+
+### Iniciar ou tentar novamente
+
+`POST /api/operacoes/:id/processamento`
+
+```json
+{ "expectedAttemptCount": 0, "scenario": "SUCCESS" }
+```
+
+`scenario` aceita `SUCCESS` ou `FAILURE`, para simulação explícita. `expectedAttemptCount` é o contador exibido nos detalhes, inteiro entre 0 e 2147483646. O primeiro início usa 0; uma nova tentativa após falha usa o contador atual. O servidor aceita início em `PENDING` ou `FAILED` e muda para `PROCESSING`.
+
+Mesmo contador anterior e mesmo cenário retornam a tentativa já criada, inclusive após resultado, sem novos efeitos. Cenário divergente, contador desatualizado, nova tentativa em andamento ou reabertura de conclusão retornam 409 `PROCESSING_CONFLICT`. Reenvios antigos depois de tentativas posteriores também retornam conflito.
+
+### Consultar ou retomar resultado
+
+`POST /api/operacoes/:id/processamento/resultado`
+
+```json
+{ "attemptId": "id-da-tentativa-atual" }
+```
+
+O servidor obtém o cenário persistido e finaliza como `COMPLETED` ou `FAILED`. Antes de `readyAt` (dois segundos após o início), retorna 409 `PROCESSING_NOT_READY`. Reenvio do resultado atual é idempotente. ID de outra tentativa ou operação, inclusive tentativa anterior após reinício, retorna 409 `PROCESSING_CONFLICT`.
+
+Ambas as rotas retornam HTTP 200 `{ data: ... }` com `Cache-Control: no-store` e os detalhes da operação. Detalhes GET e respostas incluem `processingAttemptCount` e `processingAttempts`, em ordem decrescente de número, com `id`, `number`, `scenario`, `startedBy: { id, name }`, `startedAt`, `readyAt`, `finishedAt` e `failureReason`. Resultado e motivo são persistidos; valores e referência cambial permanecem inalterados. Auditoria registra início e resultado atomicamente com a operação e a tentativa.
+
+As consultas GET não finalizam tentativas. A tela do analista chama o POST de resultado automaticamente enquanto aberta; após interrupção, um analista pode retomar a mesma tentativa. Não há processamento autônomo em segundo plano. Uma falha simulada permite nova tentativa na mesma operação; uma falha técnica de persistência desfaz a transação e permite reenvio seguro. Regras completas em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).

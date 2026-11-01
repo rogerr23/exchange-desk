@@ -6,6 +6,8 @@ export const statusLabels: Record<OperationStatus, string> = {
   UNDER_REVIEW: "Em análise",
   COMPLETED: "Concluída",
   CANCELED: "Cancelada",
+  PROCESSING: "Processando",
+  FAILED: "Falha no processamento",
 };
 export const currencyLabels: Record<Currency, string> = {
   BRL: "BRL · Real",

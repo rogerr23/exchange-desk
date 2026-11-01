@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Icon } from "@/components/icon";
 import { Notice } from "@/components/notice";
 import { StatusBadge } from "@/components/operations/status-badge";
+import { ProcessingActions } from "@/components/operations/processing-actions";
 import { StatusActions } from "@/components/operations/status-actions";
 import {
   cpf,
@@ -114,6 +115,15 @@ export default async function OperationPage({
               </div>
             </dl>
           </section>
+          {operation.request && <section className="surface-card p-6 sm:p-8">
+            <h2 className="text-sm font-semibold">Tentativas de processamento simulado</h2>
+            {!operation.processingAttempts.length ? <p className="mt-4 text-sm text-muted">Nenhuma tentativa iniciada.</p> : <ol className="mt-5 space-y-5">{operation.processingAttempts.map((attempt) => <li key={attempt.id} className="space-y-2 break-words text-sm">
+              <p className="font-semibold">Tentativa {attempt.number} · {attempt.finishedAt ? attempt.failureReason ? "Falha simulada" : "Concluída" : "Processando"}</p>
+              <p className="text-muted">Cenário: {attempt.scenario === "SUCCESS" ? "sucesso" : "falha"} · Iniciada por {attempt.startedBy.name}</p>
+              <p className="text-xs text-muted">Início: {dateTime(attempt.startedAt)} · Brasília{attempt.finishedAt && ` · Resultado: ${dateTime(attempt.finishedAt)}`}</p>
+              {attempt.failureReason && <p className="text-muted">{attempt.failureReason}</p>}
+            </li>)}</ol>}
+          </section>}
           <section className="surface-card p-6 sm:p-8">
             <div className="flex items-center gap-2">
               <Icon name="history" className="text-brand-ink" />
@@ -156,7 +166,8 @@ export default async function OperationPage({
         <div className="min-w-0 space-y-6">
           {!operation.request && can(actor.role, "operations:change-status") && actor.id !== operation.createdById && <StatusActions id={operation.id} status={operation.status} />}
           {!operation.request && can(actor.role, "operations:change-status") && actor.id === operation.createdById && <Notice>Você não pode conduzir a análise de uma operação que criou.</Notice>}
-          {operation.request && <section className="surface-card space-y-4 p-6"><h2 className="text-sm font-semibold">Solicitação aprovada</h2><p className="text-sm leading-6 text-muted">Esta operação aguarda o processamento simulado, que estará disponível em uma próxima etapa.</p><Link href={`/solicitacoes/${operation.request.id}`} className="text-sm font-semibold text-brand-ink underline">Ver decisão e proposta de origem</Link></section>}
+          {operation.request && can(actor.role, "operations:process") && (actor.id === operation.createdById ? <Notice>Você não pode processar uma operação de sua autoria, mesmo após mudança de perfil.</Notice> : <ProcessingActions key={`${operation.status}:${operation.processingAttemptCount}`} id={operation.id} status={operation.status} attemptCount={operation.processingAttemptCount} attemptId={operation.processingAttempts[0]?.id ?? null} />)}
+          {operation.request && <section className="surface-card space-y-4 p-6"><h2 className="text-sm font-semibold">Solicitação aprovada</h2><p className="text-sm leading-6 text-muted">Os valores aprovados são preservados durante o processamento simulado. Consulte as tentativas e seu resultado nesta página.</p><Link href={`/solicitacoes/${operation.request.id}`} className="text-sm font-semibold text-brand-ink underline">Ver decisão e proposta de origem</Link></section>}
           <section className="surface-card p-6">
             <h2 className="text-sm font-semibold">Dados do registro</h2>
             <dl className="mt-5 space-y-5">

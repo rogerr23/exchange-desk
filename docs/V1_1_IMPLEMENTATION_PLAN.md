@@ -1,6 +1,6 @@
 # Plano de implementação — ExchangeDesk V1.1
 
-As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista está implementada; processamento permanece pendente.
+As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista e processamento simulado com recuperação estão implementados.
 
 ## 1. Referência da V1
 
@@ -49,7 +49,7 @@ Essa referência descreve a V1 e não deve ser usada como matriz dos novos perfi
 
 A leitura de operações pelo administrador foi aprovada em 31/10/2026. Ela não concede aprovação, rejeição, processamento, criação de propostas, aceite, cadastro de clientes ou simulação. Também foram aprovados e implementados os escopos de clientes e auditoria da matriz acima.
 
-As ações de proposta, aceite, aprovação e processamento são responsabilidades aprovadas, mas seus estados e endpoints ainda serão especificados. Os status da V1 não devem ser renomeados automaticamente para representar etapas diferentes da V1.1.
+As ações de proposta, aceite, aprovação e processamento estão implementadas, conforme os documentos de fluxo. Os status da V1 não devem ser renomeados automaticamente para representar etapas diferentes da V1.1.
 
 ## 3. Entrega implementada: perfis, acesso e navegação
 
@@ -88,8 +88,8 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 
 1. Leitura de clientes e auditoria: aprovada e implementada conforme a matriz.
 2. Administrador local: preservado conforme aprovação. Atribuição de contas `OPERATOR` em outros ambientes continua exigindo definição explícita; a migração recusa bancos que ainda contenham essas contas.
-3. Definir o fluxo de propostas, aceite, solicitação, aprovação/rejeição e processamento simulado, incluindo autoria, eventos e transições.
-4. Definir validade comercial e recuperação de processamento; os 15 minutos da simulação V1 não são automaticamente a validade de uma proposta.
+3. Fluxo de propostas, aceite e decisão implementado; processamento e recuperação detalhados em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
+4. Validade definida como prazo restante da simulação; aceite válido preserva os valores para análise e processamento posteriores.
 5. Detalhar quais ações compõem a gestão de acessos (por exemplo, troca de perfil e desativação). A V1 só oferece cadastro e consulta de funcionários.
 
 ## 5. Andamento
@@ -104,4 +104,6 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 - Propostas, aceite e solicitações: primeira entrega implementada conforme [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). Validade original da simulação preservada; administrador pode consultar para suporte; operação somente após aprovação.
 - Decisão do analista: aprovação/rejeição implementadas, com motivo obrigatório na rejeição, bloqueio por identidade, idempotência e criação atômica de uma operação na aprovação. Novas operações aguardam processamento e não usam transições legadas.
 - Validação da decisão: 40 testes unitários e 28 de integração passaram, além de lint, tipos, schema e build. Conferência visual de aprovação/rejeição concluída, incluindo telas de 320 e 390 pixels. Migração aplicada nos bancos locais da aplicação e de testes.
-- Próximo passo: definir e implementar processamento simulado e recuperação.
+- Processamento simulado: implementado com tentativas persistidas, cenários explícitos, falha, retomada e nova tentativa na mesma operação; regras em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
+- Validação do processamento: 40 testes unitários e 34 de integração passaram, além de lint, tipos, schema e build. Fluxo visual de falha e nova tentativa conferido em desktop e celular. Migração aplicada nos bancos locais da aplicação e de testes.
+- Próximo passo: detalhar e implementar a gestão de acessos; depois, revisão dos painéis e validação final da V1.1.

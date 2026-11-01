@@ -1,6 +1,6 @@
 # Propostas e solicitações — desenho da próxima entrega
 
-Ciclo, validade e consulta administrativa aprovados em 31/10/2026. Propostas, aceite simulado, solicitações e decisão do analista estão implementados. O processamento simulado permanece para a próxima entrega.
+Ciclo, validade e consulta administrativa aprovados em 31/10/2026. Propostas, aceite simulado, solicitações e decisão do analista estão implementados. O processamento simulado e a recuperação estão implementados em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
 
 ## Ciclo aprovado
 
@@ -9,13 +9,13 @@ Ciclo, validade e consulta administrativa aprovados em 31/10/2026. Propostas, ac
 3. O próprio consultor registra explicitamente o aceite simulado. A ação não representa assinatura ou aceite recebido de um cliente autenticado.
 4. O aceite gera uma única solicitação para análise. Reenvios retornam o mesmo registro.
 5. O analista aprova ou rejeita a solicitação; não pode decidir sobre solicitação de sua autoria, inclusive após mudança de função.
-6. A aprovação gera uma única operação. O processamento simulado será especificado em uma entrega própria.
+6. A aprovação gera uma única operação. O processamento simulado está detalhado em seu documento de fluxo.
 
 Salvar proposta, registrar aceite e aprovar são ações distintas. A interface deve mostrar o efeito de cada uma antes da confirmação. Nenhuma ação executa pagamento ou liquidação financeira.
 
 ## Primeira entrega implementada
 
-Criação, listagem e detalhes de propostas, aceite simulado e consulta das solicitações geradas estão implementados. A decisão do analista está implementada na entrega seguinte, descrita abaixo. O processamento e sua recuperação continuam pendentes.
+Criação, listagem e detalhes de propostas, aceite simulado e consulta das solicitações geradas estão implementados. A decisão do analista está implementada na entrega seguinte, descrita abaixo. O processamento e sua recuperação estão descritos em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
 
 | Registro | Estado | Regra |
 | --- | --- | --- |
@@ -55,7 +55,7 @@ Operações anteriores permanecem identificáveis e consultáveis. Não converte
 - Validade da proposta: prazo restante dos 15 minutos da simulação, sem renovação ao salvar.
 - Administrador: consulta de propostas e solicitações para suporte aprovada.
 - Decisão do analista: implementada conforme as regras abaixo.
-- Para a entrega posterior: processamento simulado, falhas e recuperação.
+- Processamento simulado, falhas e recuperação: implementados em entrega própria.
 
 ## Entrega técnica
 
@@ -84,7 +84,7 @@ A migração foi aplicada nos bancos locais da aplicação e de testes. O banco 
 - Reenvio da mesma decisão (e do mesmo motivo normalizado na rejeição) retorna o resultado original, sem substituir responsável ou data. Decisão diferente ou edição de motivo retorna 409 `REQUEST_ALREADY_DECIDED`.
 - Decisões concorrentes disputam uma atualização condicional de `PENDING_REVIEW`; apenas uma produz efeitos. Aprovações simultâneas geram uma operação e um evento de cada histórico.
 - A consulta informa responsável, instante, motivo e `operationId`, conforme o escopo já existente. A proposta exibe os eventos `APPROVED` e `REJECTED` em seu histórico.
-- Operações criadas por aprovação não usam as transições legadas: o endpoint antigo retorna 409 `PROCESSING_NOT_AVAILABLE`. A tela oferece a consulta da decisão de origem e informa que o processamento simulado está pendente. Operações legadas preservam seu comportamento.
+- Operações criadas por aprovação não usam as transições legadas: o endpoint antigo retorna 409 `PROCESSING_REQUIRED`. A tela oferece a consulta da decisão de origem e as ações de processamento simulado. Operações legadas preservam seu comportamento.
 
 Migração aditiva: `20261031230000_request_decisions`. Não altera propostas aceitas, solicitações pendentes ou operações preexistentes.
 

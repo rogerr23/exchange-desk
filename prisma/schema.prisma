@@ -25,6 +25,13 @@ enum OperationStatus {
   UNDER_REVIEW
   COMPLETED
   CANCELED
+  PROCESSING
+  FAILED
+}
+
+enum ProcessingScenario {
+  SUCCESS
+  FAILURE
 }
 
 enum QuoteTimestampKind {
@@ -64,6 +71,7 @@ model User {
   requests     ExchangeRequest[] @relation("RequestAuthor")
   requestDecisions ExchangeRequest[] @relation("RequestReviewer")
   proposalEvents ProposalAuditEvent[]
+  processingAttempts OperationProcessingAttempt[]
 }
 
 model Customer {
@@ -97,6 +105,8 @@ model ExchangeOperation {
   updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
   customer           Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   createdBy          User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  processingAttemptCount Int @default(0)
+  processingAttempts OperationProcessingAttempt[]
   request            ExchangeRequest?
   auditEvents        OperationAuditEvent[]
 
@@ -200,4 +210,21 @@ model ProposalAuditEvent {
   @@unique([proposalId, action])
   @@index([proposalId, occurredAt, id])
   @@index([actorId])
+}
+
+model OperationProcessingAttempt {
+  id String @id @default(cuid())
+  operationId String
+  number Int
+  scenario ProcessingScenario
+  startedById String
+  startedAt DateTime @default(now()) @db.Timestamptz(3)
+  readyAt DateTime @db.Timestamptz(3)
+  finishedAt DateTime? @db.Timestamptz(3)
+  failureReason String? @db.VarChar(255)
+  operation ExchangeOperation @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  startedBy User @relation(fields: [startedById], references: [id], onDelete: Restrict)
+
+  @@unique([operationId, number])
+  @@index([startedById])
 }

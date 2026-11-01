@@ -26,7 +26,7 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
   };
   const guidance = {
     CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e salve uma proposta. O prazo de aceite é o restante dos 15 minutos da simulação.", "Registre o aceite simulado para gerar uma solicitação e acompanhe a análise."],
-    OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Aprove ou rejeite nos detalhes da solicitação. A rejeição exige um motivo e a aprovação cria a operação."],
+    OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Aprove ou rejeite nos detalhes da solicitação. A rejeição exige um motivo e a aprovação cria a operação.", "Na operação aprovada, inicie o processamento simulado e acompanhe as tentativas. Retome uma tentativa interrompida ou inicie outra após falha."],
     MANAGER: ["Acompanhe os indicadores de toda a equipe.", "Consulte os detalhes e o histórico das operações para supervisão."],
     ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
   };
@@ -35,6 +35,8 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     ...(can(actor.role, "simulations:read") ? [{ label: "Simulações salvas", value: simulationCount, note: "Desde a criação do histórico", href: "/simulacoes/historico" }] : []),
     { label: "Pendentes", value: counts.PENDING, note: "Aguardando continuidade operacional", href: "/operacoes" },
     { label: "Em análise", value: counts.UNDER_REVIEW, note: "Em conferência de dados", href: "/operacoes" },
+    { label: "Processando", value: counts.PROCESSING, note: "Tentativas simuladas em andamento", href: "/operacoes" },
+    { label: "Falhas", value: counts.FAILED, note: "Aguardando nova tentativa", href: "/operacoes" },
     { label: "Concluídas", value: counts.COMPLETED, note: "Fluxo encerrado", href: "/operacoes" },
     { label: "Canceladas", value: counts.CANCELED, note: "Encerradas sem conclusão", href: "/operacoes" },
   ];
@@ -50,7 +52,7 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     {acesso === "negado" && <div role="alert" className="notice notice-error mt-6"><Icon name="lock" />Seu perfil não tem permissão para acessar esta área.</div>}
     <section className="mt-8" aria-label="Resumo de atividades">
       <p className="mb-4 text-xs text-muted">{isConsultant ? "Somente registros criados por você" : "Toda a equipe"} · {total} {total === 1 ? "operação" : "operações"} no total</p>
-      <dl className={`grid grid-cols-2 gap-4 ${isConsultant ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {metrics.map((metric) => <div key={metric.label} className="surface-card min-w-0 p-5">
           <dt className="text-sm text-muted"><Link href={metric.href} className="hover:underline">{metric.label}</Link></dt>
           <dd className="mt-3 text-3xl font-semibold tabular-nums">{metric.value}</dd>

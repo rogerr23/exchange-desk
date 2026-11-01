@@ -37,7 +37,7 @@ export function DecisionForm({ id }: { id: string }) {
     {decision === "REJECTED" && <label className="block text-sm font-semibold">Motivo da rejeição
       <textarea className="field-input mt-2 w-full" value={reason} onChange={(event) => setReason(event.target.value)} required maxLength={1000} rows={4} disabled={pending} />
     </label>}
-    <p className="text-sm leading-6 text-muted">{decision === "APPROVED" ? "A aprovação cria uma única operação com os valores aceitos. Ela aguardará o processamento simulado, disponível em uma próxima etapa." : "A rejeição encerra esta solicitação sem criar operação. Para novo atendimento, será necessária uma nova proposta."} A decisão é definitiva e fica registrada no histórico.</p>
+    <p className="text-sm leading-6 text-muted">{decision === "APPROVED" ? "A aprovação cria uma única operação com os valores aceitos. O analista poderá iniciar o processamento simulado nos detalhes da operação." : "A rejeição encerra esta solicitação sem criar operação. Para novo atendimento, será necessária uma nova proposta."} A decisão é definitiva e fica registrada no histórico.</p>
     <label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1 shrink-0" type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} disabled={pending} required />Conferi os dados e confirmo esta decisão. Nenhum pagamento será executado.</label>
     <button className="button-primary" disabled={pending || !confirmed || (decision === "REJECTED" && !reason.trim())}>{pending ? "Registrando…" : decision === "APPROVED" ? "Confirmar aprovação" : "Confirmar rejeição"}</button>
   </form>;

@@ -73,7 +73,7 @@ beforeAll(async () => {
   await db.proposalAuditEvent.deleteMany();
   await db.exchangeRequest.deleteMany();
   await db.proposal.deleteMany();
-  await db.operationAuditEvent.deleteMany();
+  await db.operationProcessingAttempt.deleteMany(); await db.operationAuditEvent.deleteMany();
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
   await db.simulation.deleteMany();
@@ -354,7 +354,36 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   expect(operationHtml).toContain("Ver decisão e proposta de origem");
   const blockedTransition = await request(`/api/operacoes/${approved.operationId}/status`, analyst, { ...sendJson({ expectedStatus: "PENDING", status: "UNDER_REVIEW" }), method: "PATCH" });
   expect(blockedTransition.status).toBe(409);
-  expect((await blockedTransition.json()).error.code).toBe("PROCESSING_NOT_AVAILABLE");
+  expect((await blockedTransition.json()).error.code).toBe("PROCESSING_REQUIRED");
+  expect(await db.exchangeOperation.count()).toBe(1);
+  const processingPath = `/api/operacoes/${approved.operationId}/processamento`;
+  for (const jar of [operator, admin, manager]) {
+    expect((await request(processingPath, jar, sendJson({ expectedAttemptCount: 0, scenario: "SUCCESS" }))).status).toBe(403);
+    expect(await (await request(`/operacoes/${approved.operationId}`, jar)).text()).not.toContain("Iniciar processamento simulado");
+  }
+  expect(operationHtml).toContain("Iniciar processamento simulado");
+  const failedStart = await request(processingPath, analyst, sendJson({ expectedAttemptCount: 0, scenario: "FAILURE" }));
+  expect(failedStart.status).toBe(200);
+  const processing = (await failedStart.json()).data;
+  expect(processing.status).toBe("PROCESSING");
+  const firstAttempt = processing.processingAttempts[0];
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, Date.parse(firstAttempt.readyAt) - Date.now()) + 30));
+  const failedResult = await request(`${processingPath}/resultado`, analyst, sendJson({ attemptId: firstAttempt.id }));
+  expect(failedResult.status).toBe(200);
+  expect((await failedResult.json()).data.status).toBe("FAILED");
+  const retryHtml = await (await request(`/operacoes/${approved.operationId}`, analyst)).text();
+  expect(retryHtml).toContain("Iniciar nova tentativa");
+  expect(retryHtml).toContain("Falha simulada");
+  const retryStart = await request(processingPath, analyst, sendJson({ expectedAttemptCount: 1, scenario: "SUCCESS" }));
+  const retry = (await retryStart.json()).data;
+  const secondAttempt = retry.processingAttempts[0];
+  expect(retry.processingAttempts).toHaveLength(2);
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, Date.parse(secondAttempt.readyAt) - Date.now()) + 30));
+  const completed = await request(`${processingPath}/resultado`, analyst, sendJson({ attemptId: secondAttempt.id }));
+  expect((await completed.json()).data.status).toBe("COMPLETED");
+  const completedHtml = await (await request(`/operacoes/${approved.operationId}`, operator)).text();
+  expect(completedHtml).toContain("Concluída");
+  expect(completedHtml.replaceAll("<!-- -->", "")).toContain("Tentativa 2");
   expect(await db.exchangeOperation.count()).toBe(1);
   await db.user.update({ where: { id: consultant.id }, data: { role: "MANAGER" } });
   expect((await request("/api/simulacoes", operator)).status).toBe(403);

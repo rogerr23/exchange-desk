@@ -14,7 +14,10 @@ import { POST as ACCEPT } from "@/app/api/propostas/[id]/aceite/route";
 import { GET as DETAIL } from "@/app/api/propostas/[id]/route";
 import { GET as REQUEST_DETAIL } from "@/app/api/solicitacoes/[id]/route";
 import { POST as DECIDE } from "@/app/api/solicitacoes/[id]/decisao/route";
-import { changeOperationStatus, getOperation } from "@/server/services/operations";
+import { startOperationProcessing, finishOperationProcessing, PROCESSING_DELAY_MS } from "@/server/services/processing";
+import { POST as START_PROCESSING } from "@/app/api/operacoes/[id]/processamento/route";
+import { POST as FINISH_PROCESSING } from "@/app/api/operacoes/[id]/processamento/resultado/route";
+import { changeOperationStatus, getOperation, getOperationSummary } from "@/server/services/operations";
 import { ROLES, type Role } from "@/domain/permissions";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -40,7 +43,7 @@ function request(body: unknown, origin?: string) {
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 beforeEach(async () => {
   await db.proposalAuditEvent.deleteMany(); await db.exchangeRequest.deleteMany(); await db.proposal.deleteMany();
-  await db.operationAuditEvent.deleteMany(); await db.exchangeOperation.deleteMany();
+  await db.operationProcessingAttempt.deleteMany(); await db.operationAuditEvent.deleteMany(); await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany(); await db.simulation.deleteMany(); await db.user.deleteMany();
   actors = {} as Record<Role, string>;
   for (const role of ROLES) actors[role] = (await db.user.create({ data: { name: role, email: `${role.toLowerCase()}@example.test`, passwordHash: "unused", role } })).id;
@@ -193,7 +196,7 @@ it("aprova uma única vez após o prazo de aceite, preservando valores, autoria 
   expect(operation.exchangeRate.toFixed(8)).toBe("5.12345678");
   expect(operation.auditEvents).toMatchObject([{ actorId: actors.OPERATIONS_ANALYST, action: "CREATED", newStatus: "PENDING" }]);
   expect(results[0].proposal.auditEvents.map((event) => event.action)).toEqual(["CREATED", "ACCEPTED", "APPROVED"]);
-  await expect(changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "PROCESSING_NOT_AVAILABLE" });
+  await expect(changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "PROCESSING_REQUIRED" });
   await expect(decideExchangeRequest(id, { decision: "REJECTED", rejectionReason: "Outro resultado" })).rejects.toMatchObject({ code: "REQUEST_ALREADY_DECIDED" });
   login(actors.CONSULTANT);
   expect((await getOperation(operation.id)).createdById).toBe(actors.CONSULTANT);
@@ -265,4 +268,152 @@ it("desfaz decisão e operação se qualquer histórico falhar", async () => {
   expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("no-store");
   expect(JSON.stringify(await response.json())).not.toMatch(/confirmationKey|passwordHash|simulationToken/);
+});
+
+
+async function approvedOperation() {
+  const requestId = await pendingRequest();
+  login(actors.OPERATIONS_ANALYST);
+  return (await decideExchangeRequest(requestId, { decision: "APPROVED" })).operationId!;
+}
+function advanceProcessingClock() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + PROCESSING_DELAY_MS);
+}
+
+it("processa sucesso com início e resultado concorrentes idempotentes, sem duplicar eventos ou alterar valores", async () => {
+  const id = await approvedOperation();
+  const before = await getOperation(id);
+  const input = { expectedAttemptCount: 0, scenario: "SUCCESS" };
+  const starts = await Promise.all([startOperationProcessing(id, input), startOperationProcessing(id, input)]);
+  const attemptId = starts[0].processingAttempts[0].id;
+  expect(starts[1].processingAttempts[0].id).toBe(attemptId);
+  expect(starts[0]).toMatchObject({ status: "PROCESSING", processingAttemptCount: 1 });
+  await expect(finishOperationProcessing(id, { attemptId })).rejects.toMatchObject({ code: "PROCESSING_NOT_READY" });
+  advanceProcessingClock();
+  const results = await Promise.all([finishOperationProcessing(id, { attemptId }), finishOperationProcessing(id, { attemptId })]);
+  for (const result of results) {
+    expect(result).toMatchObject({ status: "COMPLETED", sourceAmount: before.sourceAmount, targetAmount: before.targetAmount, exchangeRate: before.exchangeRate, quoteFetchedAt: before.quoteFetchedAt, createdById: actors.CONSULTANT });
+    expect(result.processingAttempts).toHaveLength(1);
+    expect(result.processingAttempts[0]).toMatchObject({ number: 1, scenario: "SUCCESS", failureReason: null, startedBy: { id: actors.OPERATIONS_ANALYST } });
+    expect(result.processingAttempts[0].finishedAt).not.toBeNull();
+    expect(result.auditEvents.map(e => e.newStatus)).toEqual(["PENDING", "PROCESSING", "COMPLETED"]);
+  }
+  expect((await startOperationProcessing(id, input)).status).toBe("COMPLETED");
+  await expect(startOperationProcessing(id, { expectedAttemptCount: 1, scenario: "SUCCESS" })).rejects.toMatchObject({ code: "PROCESSING_CONFLICT" });
+  expect(await db.exchangeOperation.count()).toBe(1);
+  login(actors.CONSULTANT);
+  expect((await getOperation(id)).status).toBe("COMPLETED");
+  expect((await getOperationSummary()).COMPLETED).toBe(1);
+});
+
+it("registra falha e permite nova tentativa, preservando a anterior e recusando comandos desatualizados", async () => {
+  const id = await approvedOperation();
+  const started = await startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "FAILURE" });
+  const firstId = started.processingAttempts[0].id;
+  advanceProcessingClock();
+  const failed = await finishOperationProcessing(id, { attemptId: firstId });
+  expect(failed.status).toBe("FAILED");
+  expect(failed.processingAttempts[0].failureReason).toContain("Falha simulada");
+  expect((await getOperationSummary()).FAILED).toBe(1);
+  const retries = await Promise.all([startOperationProcessing(id, { expectedAttemptCount: 1, scenario: "SUCCESS" }), startOperationProcessing(id, { expectedAttemptCount: 1, scenario: "SUCCESS" })]);
+  const secondId = retries[0].processingAttempts[0].id;
+  expect(retries[1].processingAttempts[0].id).toBe(secondId);
+  expect(retries[0].processingAttempts[1]).toEqual(failed.processingAttempts[0]);
+  expect(retries[0].processingAttemptCount).toBe(2);
+  await expect(finishOperationProcessing(id, { attemptId: firstId })).rejects.toMatchObject({ code: "PROCESSING_CONFLICT" });
+  await expect(startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "FAILURE" })).rejects.toMatchObject({ code: "PROCESSING_CONFLICT" });
+  vi.setSystemTime(Date.now() + PROCESSING_DELAY_MS);
+  const done = await finishOperationProcessing(id, { attemptId: secondId });
+  expect(done.status).toBe("COMPLETED");
+  expect(done.processingAttempts).toHaveLength(2);
+  expect(done.auditEvents.map(e => e.newStatus)).toEqual(["PENDING", "PROCESSING", "FAILED", "PROCESSING", "COMPLETED"]);
+  expect(await db.exchangeOperation.count()).toBe(1);
+});
+
+it("uma disputa de cenários tem uma vencedora e não modifica uma tentativa em andamento", async () => {
+  const id = await approvedOperation();
+  const results = await Promise.allSettled([startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "SUCCESS" }), startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "FAILURE" })]);
+  expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+  expect((results.find(r => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ code: "PROCESSING_CONFLICT" });
+  await expect(startOperationProcessing(id, { expectedAttemptCount: 1, scenario: "SUCCESS" })).rejects.toMatchObject({ code: "PROCESSING_CONFLICT" });
+  expect(await db.operationProcessingAttempt.count()).toBe(1);
+  expect(await db.operationAuditEvent.count()).toBe(2);
+});
+
+it("retoma tentativa persistida por outro analista, sem mutação na leitura nem depender da sessão original", async () => {
+  const id = await approvedOperation();
+  const started = await startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "SUCCESS" });
+  const attemptId = started.processingAttempts[0].id;
+  advanceProcessingClock();
+  await db.user.update({ where: { id: actors.OPERATIONS_ANALYST }, data: { role: "MANAGER" } });
+  await expect(finishOperationProcessing(id, { attemptId })).rejects.toMatchObject({ status: 403 });
+  expect((await getOperation(id)).status).toBe("PROCESSING");
+  const other = await db.user.create({ data: { name: "Analista de recuperação", email: "recovery@example.test", passwordHash: "unused", role: "OPERATIONS_ANALYST" } });
+  login(other.id);
+  const done = await finishOperationProcessing(id, { attemptId });
+  expect(done.status).toBe("COMPLETED");
+  expect(done.processingAttempts[0].startedBy.id).toBe(actors.OPERATIONS_ANALYST);
+  expect(done.auditEvents.at(-1)?.actorId).toBe(other.id);
+});
+
+it("protege início e resultado por perfil, autoria atualizada, origem, esquema estrito e vínculo aprovado", async () => {
+  const id = await approvedOperation();
+  const start = { expectedAttemptCount: 0, scenario: "SUCCESS" };
+  for (const role of ["CONSULTANT", "MANAGER", "ADMIN"] as const) {
+    login(actors[role]);
+    expect((await START_PROCESSING(request(start), params(id))).status).toBe(403);
+    expect((await FINISH_PROCESSING(request({ attemptId: "missing" }), params(id))).status).toBe(403);
+  }
+  login(actors.CONSULTANT);
+  await db.user.update({ where: { id: actors.CONSULTANT }, data: { role: "OPERATIONS_ANALYST" } });
+  await expect(startOperationProcessing(id, start)).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
+  await expect(finishOperationProcessing(id, { attemptId: "missing" })).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
+  login(actors.OPERATIONS_ANALYST);
+  expect((await START_PROCESSING(request(start, "https://other.example"), params(id))).status).toBe(403);
+  expect((await FINISH_PROCESSING(request({ attemptId: "missing" }, "https://other.example"), params(id))).status).toBe(403);
+  for (const input of [{ scenario: "SUCCESS" }, { ...start, expectedAttemptCount: -1 }, { ...start, status: "COMPLETED" }, { ...start, scenario: "OTHER" }]) expect((await START_PROCESSING(request(input), params(id))).status).toBe(400);
+  expect((await FINISH_PROCESSING(request({ attemptId: "missing", scenario: "SUCCESS" }), params(id))).status).toBe(400);
+  await expect(startOperationProcessing("missing", start)).rejects.toMatchObject({ status: 404 });
+  // Uma operação legada não recebe aceite ou aprovação retroativos.
+  await db.exchangeRequest.updateMany({ where: { operationId: id }, data: { operationId: null } });
+  await expect(startOperationProcessing(id, start)).rejects.toMatchObject({ code: "APPROVED_REQUEST_REQUIRED" });
+  vi.mocked(auth).mockResolvedValue(null as never);
+  expect((await START_PROCESSING(request(start), params(id))).status).toBe(401);
+  expect((await FINISH_PROCESSING(request({ attemptId: "missing" }), params(id))).status).toBe(401);
+  expect(await db.operationProcessingAttempt.count()).toBe(0);
+});
+
+it("desfaz início e resultado em falha de auditoria e permite retomar depois sem efeitos parciais", async () => {
+  const id = await approvedOperation();
+  async function rejectAudit(action: () => Promise<unknown>) {
+    await db.$executeRaw`CREATE FUNCTION reject_test_processing_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test audit failure'; END; $$`;
+    try {
+      await db.$executeRaw`CREATE TRIGGER reject_test_processing_audit BEFORE INSERT ON "OperationAuditEvent" FOR EACH ROW EXECUTE FUNCTION reject_test_processing_audit()`;
+      await action();
+    } finally {
+      await db.$executeRaw`DROP TRIGGER IF EXISTS reject_test_processing_audit ON "OperationAuditEvent"`;
+      await db.$executeRaw`DROP FUNCTION IF EXISTS reject_test_processing_audit()`;
+    }
+  }
+  await rejectAudit(async () => {
+    await expect(startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "SUCCESS" })).rejects.toThrow();
+    expect(await getOperation(id)).toMatchObject({ status: "PENDING", processingAttemptCount: 0, processingAttempts: [] });
+    expect(await db.operationAuditEvent.count()).toBe(1);
+  });
+  const started = await startOperationProcessing(id, { expectedAttemptCount: 0, scenario: "SUCCESS" });
+  const attemptId = started.processingAttempts[0].id;
+  advanceProcessingClock();
+  await rejectAudit(async () => {
+    await expect(finishOperationProcessing(id, { attemptId })).rejects.toThrow();
+    expect((await getOperation(id)).status).toBe("PROCESSING");
+    expect((await getOperation(id)).processingAttempts[0].finishedAt).toBeNull();
+    expect(await db.operationAuditEvent.count()).toBe(2);
+  });
+  const response = await FINISH_PROCESSING(request({ attemptId }), params(id));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  const body = await response.json();
+  expect(body.data.status).toBe("COMPLETED");
+  expect(JSON.stringify(body)).not.toMatch(/passwordHash|simulationToken|confirmationKey/);
 });

@@ -6,6 +6,8 @@ export function StatusBadge({ status }: { status: OperationStatus }) {
     UNDER_REVIEW: "bg-brand-soft text-brand-ink",
     COMPLETED: "bg-positive/10 text-positive",
     CANCELED: "bg-canvas text-muted",
+    PROCESSING: "bg-brand-soft text-brand-ink",
+    FAILED: "bg-warning/10 text-warning",
   };
   return (
     <span
