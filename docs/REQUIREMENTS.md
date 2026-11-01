@@ -20,7 +20,7 @@ Cada funcionário tem exatamente um perfil. Clientes não possuem login. A aplic
 | Cadastrar clientes | Sim | Não | Não | Não |
 | Consultar clientes | Todos | Todos | Todos | Vinculados a operações |
 | Criar simulações e consultar seu histórico | Próprias | Não | Não | Não |
-| Criar operações pelo fluxo existente | Sim | Não | Não | Não |
+| Criar propostas e registrar aceite simulado | Sim, próprias | Não | Não | Não |
 | Consultar operações, totais e auditoria | Próprias | Equipe | Equipe | Equipe, para suporte |
 | Alterar status no fluxo existente | Não | Exceto operações criadas por si | Não | Não |
 
@@ -89,7 +89,9 @@ O provedor escolhido é Frankfurter v2, consultando a fonte ECB para os seis par
 
 Cada simulação bem-sucedida deve persistir um histórico independente por autor. A tela e a API exibem até 50 consultas recentes do escopo do usuário, sem tokens ou chaves internas. Simulações anteriores à implementação não são recuperadas. A referência assinada deve preservar os valores apresentados; assinatura inválida, expiração ou funcionário diferente impedem a confirmação. Uma simulação expirada exige nova simulação e nova confirmação do resultado.
 
-### RF06 — Operações
+### RF06 — Operações legadas da V1
+
+Os itens abaixo preservam a referência da V1. Na entrega atual, a criação direta de operações foi bloqueada; uma nova operação dependerá da aprovação pelo analista, ainda a implementar. O ciclo atual de propostas e solicitações está no RF08.
 
 - Criar uma operação a partir de uma simulação confirmada, vinculada a um cliente e ao funcionário responsável.
 - Registrar moedas, valor de origem, valor de destino, taxa, fonte e horário da referência, data de criação e status inicial Pendente.
@@ -121,6 +123,18 @@ O fluxo fechado não prevê cancelamento direto de Pendente. A V1 não exige edi
 **Aceite:** toda transição bem-sucedida tem um evento correspondente; uma transição recusada não muda a operação; falha na gravação da auditoria impede a confirmação da alteração.
 
 Auditoria completa de login e de todas as alterações cadastrais não faz parte do mínimo fechado.
+
+### RF08 — Propostas, aceite simulado e solicitações
+
+- Consultor cria proposta a partir de simulação íntegra, válida e própria, selecionando um cliente.
+- Preservar valores, cotação e prazo restante da simulação: 15 minutos desde a emissão, sem renovar ao salvar.
+- Registrar aceite simulado em ação separada e explícita pelo consultor autor, dentro do prazo.
+- Gerar uma única solicitação Aguardando análise, atomicamente com aceite e histórico. Reenvios e cliques simultâneos não duplicam os registros.
+- Manter consulta da solicitação e valores após o prazo original, se o aceite já foi concluído.
+- Consultor consulta próprios registros; analista consulta solicitações e propostas já aceitas da equipe; gerente e administrador consultam a equipe, sem criar ou aceitar.
+- Bloquear criação direta de operação; aprovação do analista gerará a operação em entrega posterior.
+
+**Aceite:** criar proposta não cria solicitação ou operação; aceitar validamente gera uma solicitação e um evento, sem operação; expiração e tentativas fora do escopo são recusadas no servidor; falha do histórico desfaz a ação.
 
 ## 4. Requisitos técnicos e de qualidade
 

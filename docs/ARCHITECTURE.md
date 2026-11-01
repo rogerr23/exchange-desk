@@ -148,7 +148,9 @@ Uma tabela separada de simulações não é necessária para o escopo atual. IDs
 
 Conversão: `valorDestino = valorOrigem × taxa`. Não adicionar impostos, tarifas ou spread.
 
-### Confirmar operação
+### Confirmar operação — referência histórica da V1
+
+A criação direta descrita abaixo foi substituída por propostas e aceite. O endpoint antigo agora bloqueia criação com `APPROVAL_REQUIRED`; operações existentes continuam consultáveis. O fluxo atual está na seção 10.
 
 1. Validar sessão, autorização, cliente e os dados da simulação no servidor.
 2. Recuperar ou verificar a referência de cotação confiável usada na simulação; não aceitar taxa e resultado arbitrários enviados pelo navegador.
@@ -270,3 +272,15 @@ A migração `20261031210000_v1_1_roles` substitui o enum de perfis em transaç�
 `requireActor`/`requirePageActor` verificam o funcionário sem exigir uma permissão comercial. Layout e login usam essa verificação. Páginas e serviços mantêm suas próprias autorizações. Navegação usa a matriz de `can`; o painel carrega simulações apenas para consultores. O JWT mantém a identidade e o servidor consulta o perfil atual para autorizar, inclusive após troca de função.
 
 O fluxo de estados existente permanece `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Não há entidades ou endpoints de propostas, aceite ou processamento simulado nesta entrega.
+
+## 10. Propostas, aceite e solicitações
+
+`Proposal` guarda um retrato da simulação validada, com cliente, autor, valores decimais, cotação, emissão e prazo original. A chave única de confirmação impede duplicações por simulação. Não se guarda token. Antes de criar, o serviço também recusa uma simulação já consumida por operação V1.
+
+`acceptedAt` é opcional. O estado exibido é derivado: aceita quando preenchido; expirada quando o prazo termina sem aceite; caso contrário, aguardando aceite. Não existe tarefa periódica para expirar propostas. A migração impõe valores positivos, moedas diferentes, validade de 15 minutos desde a emissão e aceite dentro dessa janela.
+
+`acceptProposal` atualiza condicionalmente por autor, ausência de aceite e prazo vigente. Na mesma transação cria `ExchangeRequest` com vínculo único à proposta e evento `ACCEPTED` em `ProposalAuditEvent`. Uma tentativa concorrente lê o resultado vencedor; reenvios após aceite são idempotentes mesmo depois do prazo. Falha real do evento desfaz aceite e solicitação.
+
+O consultor consulta apenas suas propostas e solicitações. O analista só consulta propostas com solicitação gerada. Gerente e administrador consultam a equipe. `getProposal`, `listProposals`, `getExchangeRequest` e `listRequests` verificam sessão, perfil atual e escopo no servidor. Consulta administrativa não concede mutação.
+
+A entrada antiga de criação de operação está bloqueada. A aprovação ainda será implementada e será a única responsável por criar a operação. Os testes de operações V1 usam fixtures legadas no banco descartável, preservando a verificação de transições, concorrência e rollback sem simular uma entrada de criação ainda disponível.

@@ -113,39 +113,47 @@ Sucesso retorna HTTP 200 com `{ data: ... }` e `Cache-Control: no-store`. O cont
 
 O cache de cotações dura 15 minutos por par, em memória do processo. Consultas externas têm timeout de 5 segundos, sem repetição automática. Erros de rede, timeout, HTTP do provedor ou resposta inválida retornam HTTP 503 com código `QUOTE_UNAVAILABLE` e mensagem “Não foi possível consultar a cotação agora. Tente novamente em instantes.” Não há resultado substituto ou cotação fictícia em falhas. Entradas inválidas retornam 400; resultados fora dos limites técnicos retornam 400 com `AMOUNT_OUT_OF_RANGE`.
 
-Cada simulação bem-sucedida salva um registro de histórico associado ao funcionário, sem criar operação nem auditoria de operação. Falha na gravação do histórico retorna erro e não entrega um novo token confirmável. O token tem integridade verificável, sem criptografia do conteúdo. O registro da operação garante uma única confirmação por simulação, por restrição persistida no banco. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de confirmação está disponível abaixo; a tela `/simulacoes` apresenta alertas persistentes e permite tentar novamente preservando os campos.
+Cada simulação bem-sucedida salva um registro de histórico associado ao funcionário, sem criar operação nem auditoria de operação. Falha na gravação do histórico retorna erro e não entrega um novo token confirmável. O token tem integridade verificável, sem criptografia do conteúdo. A criação da proposta garante uso único da simulação, por restrição persistida no banco. Alterar `AUTH_SECRET` invalida tokens existentes. O endpoint de criação de proposta está descrito abaixo; a tela `/simulacoes` apresenta alertas persistentes e permite tentar novamente preservando os campos.
 
 ### Histórico de simulações
 
-`GET /api/simulacoes` exige sessão de consultor e retorna `{ data: [...] }`, com `Cache-Control: no-store`. Retorna até 50 simulações mais recentes por emissão: somente as do próprio consultor. Os demais perfis recebem 403. Inclui id, autoria pública (id e nome), valores decimais como strings, taxa, fonte, referência diária, instante de consulta, emissão, expiração e `operationId` (nulo enquanto não confirmada). Não retorna token nem chave de confirmação. Simulações anteriores à migração não são recuperadas. O histórico permanece após expirar e não permite renovar ou confirmar um token vencido; **Simular novamente** exige nova consulta e revisão.
+`GET /api/simulacoes` exige sessão de consultor e retorna `{ data: [...] }`, com `Cache-Control: no-store`. Retorna até 50 simulações mais recentes por emissão: somente as do próprio consultor. Os demais perfis recebem 403. Inclui id, autoria pública (id e nome), valores decimais como strings, taxa, fonte, referência diária, instante de consulta, emissão, expiração `proposalId` (nulo enquanto não houver proposta) e `operationId` (para registros legados). Não retorna token nem chave de confirmação. Simulações anteriores à migração não são recuperadas. O histórico permanece após expirar e não permite renovar ou confirmar um token vencido; **Simular novamente** exige nova consulta e revisão.
 
-## Operações e auditoria
+## Propostas e solicitações
 
-Esta entrega mantém os estados da V1. Propostas, aceite e processamento simulado ainda não possuem endpoints próprios.
-
-Todas as rotas exigem sessão e retornam `Cache-Control: no-store`. Consultores criam operações e só listam, consultam detalhes, auditoria e totais de sua autoria. Analista, gerente e administrador consultam a equipe. IDs fora do escopo de leitura retornam 404. Somente analistas alteram status no fluxo existente; os demais perfis recebem 403. O analista não pode analisar uma operação que criou, mesmo após mudança de perfil: retorna 403 `SELF_REVIEW_FORBIDDEN`, sem alterar status ou auditoria. Mutações exigem JSON e recusam `Origin` diferente da aplicação.
+Todas as respostas usam `Cache-Control: no-store`. Mutações exigem JSON e recusam origem externa. Valores são strings decimais; chaves internas, tokens e hashes de senha não são retornados nas consultas.
 
 | Método e rota | Resultado |
 | --- | --- |
-| `POST /api/operacoes` | Confirma simulação para um cliente; 201 na criação, 200 no reenvio da mesma confirmação |
-| `GET /api/operacoes` | Lista no escopo do usuário, em ordem de criação decrescente; sem paginação nesta V1 |
-| `GET /api/operacoes/:id` | Detalhes com eventos de auditoria em ordem cronológica |
-| `PATCH /api/operacoes/:id/status` | Altera status e grava auditoria na mesma transação |
+| `POST /api/propostas` | Consultor envia `{ customerId, simulationToken }`; 201 na criação e 200 no reenvio válido |
+| `GET /api/propostas` | Propostas do escopo do perfil |
+| `GET /api/propostas/:id` | Valores preservados, cliente, autor, prazo, solicitação vinculada e histórico |
+| `POST /api/propostas/:id/aceite` | Consultor autor envia `{ confirmSimulatedAcceptance: true }`; 201 no primeiro aceite, 200 em reenvio |
+| `GET /api/solicitacoes` | Solicitações do escopo do perfil |
+| `GET /api/solicitacoes/:id` | Solicitação e proposta de origem, com histórico |
 
-Para confirmar, enviar somente `customerId` e `simulationToken` obtido de `/api/simulacoes`. Não enviar taxa, valores ou autoria; campos extras são recusados. O servidor verifica a assinatura, o funcionário, a validade, a consistência dos valores e a existência do cliente. Não consulta outra cotação. Operação Pendente e evento inicial são gravados juntos.
+Consultores consultam e aceitam apenas seus registros. Analistas consultam solicitações da equipe e propostas com solicitação gerada; proposta ainda sem aceite retorna 404. Gerentes e administradores consultam propostas e solicitações da equipe, sem permissão de criação ou aceite. IDs fora do escopo retornam 404.
 
-```js
-const response = await fetch("/api/operacoes", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ customerId, simulationToken }),
-});
-const { data: operation } = await response.json();
-```
+A proposta preserva os valores e `expiresAt` da simulação assinada, sem renovar o prazo original de 15 minutos. Token inválido, expirado ou de outro funcionário retorna 400 `INVALID_SIMULATION`. Uma simulação já usada por outro cliente ou por uma operação legada retorna 409 `SIMULATION_ALREADY_USED`.
 
-A mesma simulação gera no máximo uma operação, mesmo com confirmações simultâneas. Reenvio ainda válido para o mesmo cliente retorna a operação já existente e seu status atual, sem repetir auditoria. Para outro cliente, retorna 409 `SIMULATION_ALREADY_CONFIRMED`. A validação do token ocorre antes da recuperação: se expirou, retorna 400 `INVALID_SIMULATION`; em caso de dúvida após uma falha de conexão, consultar as operações antes de iniciar uma nova confirmação.
+`status` da proposta é derivado: `AWAITING_ACCEPTANCE`, `EXPIRED` ou `ACCEPTED`. Aceite após expiração retorna 409 `PROPOSAL_EXPIRED`. O aceite grava `acceptedAt`, uma única solicitação `PENDING_REVIEW` e o evento `ACCEPTED` atomicamente. Reenvio de aceite já concluído retorna o registro existente mesmo depois do prazo. Falha de histórico desfaz criação/aceite. Não há operação gerada nesta etapa.
 
-A resposta usa `{ data: ... }`. Cada operação inclui identificadores, cliente (id, nome, CPF cadastrado), funcionário criador (id e nome), moedas, valores, taxa, referência e status, com datas de criação/atualização. Valores são strings com duas casas e a taxa com oito. `quoteReferenceDate` preserva `YYYY-MM-DD`; os demais instantes são ISO 8601. Detalhes, confirmação e alteração também incluem `auditEvents` com ação, status anterior/novo, instante e autor (id e nome). Nunca retorna senha, hash de senha, token ou chave interna de confirmação.
+As telas são `/propostas`, `/propostas/:id`, `/solicitacoes` e `/solicitacoes/:id`. `/simulacoes` cria a proposta e abre seus detalhes; o aceite é uma segunda ação explícita, com confirmação de que é simulado.
+
+## Operações e auditoria legadas
+
+Operações já existentes mantêm valores, autoria e histórico. Consultores consultam suas próprias operações; analista, gerente e administrador consultam a equipe. Somente analistas conduzem as transições legadas, sem analisar operações de própria autoria, inclusive após mudança de perfil (403 `SELF_REVIEW_FORBIDDEN`).
+
+| Método e rota | Resultado |
+| --- | --- |
+| `POST /api/operacoes` | Criação direta bloqueada: 409 `APPROVAL_REQUIRED` para consultores; 403 para outros perfis; 401 sem sessão |
+| `GET /api/operacoes` | Lista operações no escopo do perfil |
+| `GET /api/operacoes/:id` | Detalhes e histórico, ou 404 fora do escopo |
+| `PATCH /api/operacoes/:id/status` | Transição legada com auditoria atômica |
+
+A aprovação do analista gerará a operação em uma próxima entrega. Não há endpoint de aprovação/rejeição ou processamento simulado disponível nesta etapa.
+
+A resposta usa `{ data: ... }`. Cada operação inclui identificadores, cliente (id, nome, CPF cadastrado), funcionário criador (id e nome), moedas, valores, taxa, referência e status, com datas de criação/atualização. Valores são strings com duas casas e a taxa com oito. `quoteReferenceDate` preserva `YYYY-MM-DD`; os demais instantes são ISO 8601. Detalhes e alteração também incluem `auditEvents` com ação, status anterior/novo, instante e autor (id e nome). Nunca retorna senha, hash de senha, token ou chave interna de confirmação.
 
 Para alterar o status, enviar o status exibido na tela em `expectedStatus` e o destino em `status`:
 
@@ -157,4 +165,4 @@ await fetch(`/api/operacoes/${operation.id}/status`, {
 });
 ```
 
-Transições: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Saltos, repetições, regressões e reabertura retornam 409 `INVALID_TRANSITION`. Se o status atual difere de `expectedStatus`, retorna 409 `STATUS_CONFLICT` e orienta atualizar os dados. Somente a transição vencedora em uma disputa grava seu evento. Falha de auditoria desfaz também a criação/alteração da operação. Cliente ou operação inexistente retorna 404. A interface de confirmação está em `/simulacoes`; a listagem e os detalhes com auditoria estão em `/operacoes` e `/operacoes/:id`. O painel `/inicio` apresenta as quantidades reais por status e o total de simulações salvas, limitados ao mesmo escopo de autoria, além de atividades recentes e orientações.
+Transições: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Saltos, repetições, regressões e reabertura retornam 409 `INVALID_TRANSITION`. Se o status atual difere de `expectedStatus`, retorna 409 `STATUS_CONFLICT` e orienta atualizar os dados. Somente a transição vencedora em uma disputa grava seu evento. Falha de auditoria desfaz a alteração da operação. Cliente ou operação inexistente retorna 404. A interface de criação de propostas está em `/simulacoes`; a listagem e os detalhes com auditoria estão em `/operacoes` e `/operacoes/:id`. O painel `/inicio` apresenta as quantidades reais por status e o total de simulações salvas, limitados ao mesmo escopo de autoria, além de atividades recentes e orientações.

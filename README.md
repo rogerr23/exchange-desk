@@ -34,15 +34,15 @@ A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo inter
 2. Cadastra ou seleciona um cliente.
 3. Escolhe as moedas e informa o valor de origem.
 4. Consulta a cotação e visualiza a simulação, a fonte e o horário da referência.
-5. Confirma o registro da operação como **Pendente**, preservando os valores e a cotação apresentados.
-6. A operação passa para **Em análise** e depois para **Concluída** ou **Cancelada**.
-7. Cada alteração de status fica registrada na auditoria.
+5. Salva uma proposta com os valores, a cotação e o prazo original da simulação.
+6. Registra separadamente o aceite simulado, gerando uma solicitação **Aguardando análise**.
+7. A criação da operação dependerá da aprovação pelo analista, disponível em uma próxima entrega. O fluxo antigo de operações continua disponível para registros já existentes.
 
 O status Concluída indica o encerramento do fluxo interno da operação; pagamentos e liquidação financeira são externos ao sistema.
 
 ## Execução local
 
-Login, funcionários, clientes, simulações e operações já têm telas próprias. A visão geral apresenta as quantidades reais por status, sem gráficos por decisão de escopo. O fluxo permite cadastrar cliente, simular, revisar e confirmar uma operação, alterar seu status e consultar a auditoria. Os serviços também estão disponíveis pela API.
+Login, funcionários, clientes, simulações, propostas, solicitações e operações já têm telas próprias. A visão geral apresenta as quantidades reais por status, sem gráficos por decisão de escopo. O fluxo permite cadastrar cliente, simular, criar proposta, registrar aceite simulado e acompanhar a solicitação e seu histórico. As operações anteriores continuam disponíveis para consulta e transições do fluxo V1. Os serviços também estão disponíveis pela API.
 
 Ambiente de referência: **Node.js 22.14.0** (ver `.nvmrc`), **npm 11.6.2** e **PostgreSQL 17**. As versões das dependências estão fixadas em `package.json` e `package-lock.json`. Prisma 7 usa configuração em `prisma.config.ts` e o adaptador PostgreSQL; consulte a [documentação oficial](https://www.prisma.io/docs/orm/v7).
 
@@ -136,7 +136,7 @@ Valores com duas casas decimais e taxas com oito. Cálculos com aritmética deci
 
 Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT com expiração de oito horas. Login, logout, bootstrap e serviços de cadastros já estão implementados.
 
-O consultor possui um painel pessoal em `/inicio`, com simulações, operações e auditoria próprias, e cadastra clientes. Analista e gerente consultam operações, auditoria e clientes da equipe; apenas o analista conduz as transições do fluxo existente, sem analisar operações que criou, mesmo após mudança de função. O administrador cadastra e lista funcionários e consulta operações, auditoria e clientes vinculados para suporte. Somente o consultor cria simulações e operações; o administrador não herda essas ações. O perfil atual é conferido no banco em cada autorização. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
+O consultor possui um painel pessoal em `/inicio`, com simulações, operações e auditoria próprias, e cadastra clientes. Analista e gerente consultam operações, auditoria e clientes da equipe; apenas o analista conduz as transições do fluxo existente, sem analisar operações que criou, mesmo após mudança de função. O administrador cadastra e lista funcionários e consulta operações, auditoria e clientes vinculados para suporte. Somente o consultor cria simulações e propostas e registra aceite; o administrador não herda essas ações. O perfil atual é conferido no banco em cada autorização. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
 
 ## Próxima entrega e decisões pendentes
 
@@ -151,7 +151,8 @@ O foco atual é o desenvolvimento local e a evolução para a V1.1, conforme [as
 - [IMPLEMENTATION_PLAN.md](./docs/IMPLEMENTATION_PLAN.md): sequência de implementação da V1.
 - [API.md](./docs/API.md): preparação do acesso, endpoints e exemplos de uso.
 - [V1_1_DECISIONS.md](./docs/V1_1_DECISIONS.md): responsabilidades e escopos aprovados para os quatro perfis.
-- [V1_1_IMPLEMENTATION_PLAN.md](./docs/V1_1_IMPLEMENTATION_PLAN.md): base local conferida, matriz funcional e preparação da evolução dos perfis.
+- [V1_1_IMPLEMENTATION_PLAN.md](./docs/V1_1_IMPLEMENTATION_PLAN.md): base local conferida, matriz funcional e andamento da V1.1.
+- [V1_1_PROPOSAL_FLOW.md](./docs/V1_1_PROPOSAL_FLOW.md): ciclo aprovado e entrega de propostas, aceite e solicitações.
 
 ### Painel do consultor e histórico de simulações
 
@@ -165,4 +166,10 @@ A migração `20261031210000_v1_1_roles` implementa `CONSULTANT`, `OPERATIONS_AN
 
 A migração recusa bancos que ainda tenham contas `OPERATOR`, exigindo atribuição explícita antes da evolução. Não converte usuários nem reescreve autoria automaticamente. Outro ambiente com operadores exige um plano de atribuição e migração próprio antes de executar `db:deploy`.
 
-Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite, aprovação/rejeição e processamento simulado ainda dependem da definição dos seus estados e regras. Edição de perfil, desativação e recuperação de acesso também continuam pendentes.
+Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite e solicitações aguardando análise já estão disponíveis. Aprovação/rejeição e processamento simulado ainda dependem da definição dos seus estados e regras. Edição de perfil, desativação e recuperação de acesso também continuam pendentes.
+
+### Propostas e aceite simulado
+
+Aplique `20261031220000_proposals_and_requests` com `npm run db:deploy`. A tela de simulação agora salva uma proposta; o aceite é uma segunda ação explícita nos detalhes e gera uma solicitação única. O prazo continua sendo o restante dos 15 minutos desde a simulação, sem renovação. Solicitações aceitas preservam os valores para análise mesmo depois desse prazo.
+
+Consultores veem seus registros; analistas veem solicitações da equipe e propostas já aceitas; gerentes e administradores consultam a equipe. A criação direta por `POST /api/operacoes` foi bloqueada com `APPROVAL_REQUIRED`, pois a operação dependerá de aprovação. A decisão do analista ainda não está disponível nesta entrega. Regras e próximos passos em [V1_1_PROPOSAL_FLOW.md](./docs/V1_1_PROPOSAL_FLOW.md).

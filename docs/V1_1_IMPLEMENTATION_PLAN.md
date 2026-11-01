@@ -1,6 +1,6 @@
 # Plano de implementação — ExchangeDesk V1.1
 
-As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; os novos fluxos permanecem pendentes.
+As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista e processamento permanecem pendentes.
 
 ## 1. Referência da V1
 
@@ -40,7 +40,7 @@ Essa referência descreve a V1 e não deve ser usada como matriz dos novos perfi
 | Consultar clientes | Todos | Todos | Todos | Apenas vinculados a operações |
 | Consultar auditoria de operações | Próprias | Equipe | Equipe | Equipe, para suporte |
 | Criar propostas e registrar aceite simulado | Sim | Não | Não | Não |
-| Consultar propostas | Próprias | Solicitações da equipe para conferência | Registros da equipe para supervisão | Escopo de propostas ainda a definir |
+| Consultar propostas | Próprias | Solicitações da equipe para conferência | Registros da equipe para supervisão | Equipe, para suporte |
 | Consultar operações | Próprias | Equipe | Equipe | Equipe, para suporte |
 | Aprovar ou rejeitar solicitações | Não | Sim, exceto as criadas pelo próprio funcionário | Não | Não |
 | Iniciar processamento simulado | Não | Sim | Não | Não |
@@ -101,4 +101,5 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 - Fluxo existente: registro pelo consultor e transições pelo analista; análise da própria operação bloqueada por identidade, inclusive após mudança de função.
 - Validação: 40 testes unitários e 20 de integração passaram, incluindo migração com preservação de vínculos, escopos, HTTP dos quatro perfis e sessão existente após mudança de função; lint, tipos, schema e build passaram.
 - Conferência visual: login e painel dos quatro perfis em desktop; detalhes com auditoria e ações exclusivas do analista; layouts de 390 e 320 pixels sem rolagem horizontal da página. Foram usadas apenas contas temporárias no banco descartável, removidas ao concluir; o servidor temporário foi encerrado.
-- Novos fluxos de proposta, aceite e processamento: ainda não implementados. Próximo passo: definir estados, ações, validade comercial e eventos do ciclo de propostas e solicitações.
+- Propostas, aceite e solicitações: primeira entrega implementada conforme [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). Validade original da simulação preservada; administrador pode consultar para suporte; operação somente após aprovação.
+- Próximo passo: definir e implementar aprovação/rejeição pelo analista e, depois, processamento simulado e recuperação.

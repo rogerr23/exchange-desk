@@ -1,6 +1,6 @@
 # Decisões aprovadas — ExchangeDesk V1.1
 
-Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite e processamento simulado ainda não foram implementados.
+Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite simulado e solicitações aguardando análise estão implementados; aprovação/rejeição e processamento simulado ainda não estão disponíveis.
 
 ## Acesso — um perfil por funcionário
 
@@ -41,10 +41,21 @@ Detalhamento aprovado em 31/10/2026:
 - Administrador consulta somente clientes vinculados às operações e a auditoria das operações, para suporte; não cadastra clientes.
 - A conta administrativa local é mantida como `ADMIN`. As demais funções serão cadastradas em contas separadas, sem acessos automáticos.
 
-O acesso administrativo a propostas continua pendente. A separação de perfis foi aplicada ao fluxo existente: o consultor registra a operação e o analista conduz sua análise, sem analisar operações criadas por si. Isso não define os estados futuros de proposta, aceite, aprovação/rejeição e processamento.
+O acesso administrativo a propostas e solicitações para suporte foi aprovado, somente para consulta. A separação de perfis foi aplicada ao fluxo existente: o consultor registra a operação e o analista conduz sua análise, sem analisar operações criadas por si. Isso não define os estados futuros de proposta, aceite, aprovação/rejeição e processamento.
 
 ## Próxima etapa
 
 A referência local da V1 e os dados existentes foram conferidos. As três migrações da V1 foram conferidas; a migração dos perfis também foi aplicada nos bancos locais da aplicação e de testes. Neste ambiente existe apenas um administrador e nenhum registro operacional.
 
-O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. A próxima etapa é definir o ciclo de propostas, aceite e solicitações antes de implementar os novos estados e ações.
+O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A próxima etapa é definir a decisão do analista e o processamento simulado.
+
+## Ciclo de propostas e solicitações
+
+Decisões aprovadas em 31/10/2026:
+
+- Simulação → proposta → aceite simulado → solicitação → aprovação ou rejeição pelo analista.
+- A operação será criada somente após aprovação, sem criação no aceite. A aprovação ainda será implementada.
+- A proposta usa o prazo restante dos 15 minutos contados desde a simulação. Salvar não renova a validade; o aceite válido preserva os valores para análise posterior.
+- O administrador pode consultar propostas e solicitações para suporte, sem alterá-las.
+
+A primeira entrega, suas regras de integridade e as pendências estão em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md).
