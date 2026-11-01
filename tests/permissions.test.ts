@@ -3,7 +3,7 @@ import { can, ROLES, type Permission } from "@/domain/permissions";
 
 describe("permissões da equipe", () => {
   it("reserva cadastro e consulta de funcionários ao administrador", () => {
-    for (const permission of ["employees:create", "employees:read"] as const) {
+    for (const permission of ["employees:create", "employees:read", "employees:manage-access"] as const) {
       expect(can("ADMIN", permission)).toBe(true);
       for (const role of ROLES.filter((role) => role !== "ADMIN")) expect(can(role, permission)).toBe(false);
     }
@@ -24,7 +24,7 @@ describe("permissões da equipe", () => {
 
   it("recusa todas as ações sem um perfil autenticado", () => {
     const actions: Permission[] = [
-      "employees:create", "employees:read", "customers:read", "customers:create",
+      "employees:create", "employees:read", "employees:manage-access", "customers:read", "customers:create",
       "quotes:simulate", "simulations:read", "operations:read", "proposals:create",
       "operations:change-status", "proposals:read", "proposals:accept", "requests:read", "requests:decide", "operations:process", "audit:read",
     ];

@@ -14,7 +14,7 @@ export async function authenticateCredentials(input: unknown) {
   // E-mails desconhecidos também passam pela verificação de hash.
   const passwordHash = user?.passwordHash ?? await (dummyHash ??= hashPassword(randomBytes(32).toString("hex")));
   const valid = await verifyPassword(passwordHash, parsed.data.password);
-  if (!user || !valid) return null;
+  if (!user || !valid || !user.isActive) return null;
 
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return { id: user.id, name: user.name, email: user.email, role: user.role, sessionVersion: user.sessionVersion };
 }

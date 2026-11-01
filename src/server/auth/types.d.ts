@@ -3,10 +3,11 @@ import type { Role } from "@/domain/permissions";
 
 declare module "next-auth" {
   interface Session {
-    user: { id: string; role: Role } & DefaultSession["user"];
+    user: { id: string; role: Role; sessionVersion?: number } & DefaultSession["user"];
   }
 
   interface User {
     role: Role;
+    sessionVersion: number;
   }
 }

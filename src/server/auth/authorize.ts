@@ -11,10 +11,10 @@ export async function requireActor() {
   // O banco é a referência do perfil atual; não confiar em dados enviados pelo navegador.
   const actor = await getDb().user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, isActive: true, sessionVersion: true },
   });
-  if (!actor) throw new AppError(401, "UNAUTHENTICATED", "Entre no sistema para continuar.");
-  return actor;
+  if (!actor || !actor.isActive || actor.sessionVersion !== (session.user.sessionVersion ?? 0)) throw new AppError(401, "UNAUTHENTICATED", "Entre no sistema para continuar.");
+  return { id: actor.id, name: actor.name, email: actor.email, role: actor.role, sessionVersion: actor.sessionVersion };
 }
 
 export async function requirePermission(permission: Permission) {

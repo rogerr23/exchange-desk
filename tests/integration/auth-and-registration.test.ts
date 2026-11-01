@@ -30,7 +30,7 @@ beforeEach(async () => {
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
   await db.simulation.deleteMany();
-  await db.user.deleteMany();
+  await db.employeeAccessEvent.deleteMany(); await db.user.deleteMany();
 });
 
 afterAll(async () => { await db.$disconnect(); });

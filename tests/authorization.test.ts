@@ -29,7 +29,7 @@ describe("autorização no servidor", () => {
 
   it("usa o perfil atual do banco mesmo se o token indicar administrador", async () => {
     vi.mocked(auth).mockResolvedValue({ user: { id: "operator", role: "ADMIN" } } as never);
-    findUnique.mockResolvedValue({ id: "operator", role: "CONSULTANT" });
+    findUnique.mockResolvedValue({ id: "operator", role: "CONSULTANT", isActive: true, sessionVersion: 0 });
     await expect(createEmployee({ role: "ADMIN" })).rejects.toMatchObject({ status: 403 });
     expect(create).not.toHaveBeenCalled();
   });
@@ -39,4 +39,14 @@ describe("autorização no servidor", () => {
     findUnique.mockResolvedValue(null);
     await expect(requirePermission("customers:read")).rejects.toMatchObject({ status: 401 });
   });
+});
+
+it("recusa conta desativada e sessão revogada mesmo após reativação", async () => {
+  vi.mocked(auth).mockResolvedValue({ user: { id: "employee", sessionVersion: 0 } } as never);
+  findUnique.mockResolvedValue({ id: "employee", role: "ADMIN", isActive: false, sessionVersion: 1 });
+  await expect(requirePermission("customers:read")).rejects.toMatchObject({ status: 401 });
+  findUnique.mockResolvedValue({ id: "employee", role: "ADMIN", isActive: true, sessionVersion: 1 });
+  await expect(requirePermission("customers:read")).rejects.toMatchObject({ status: 401 });
+  vi.mocked(auth).mockResolvedValue({ user: { id: "employee", sessionVersion: 1 } } as never);
+  expect((await requirePermission("customers:read")).id).toBe("employee");
 });

@@ -26,7 +26,7 @@ it("protege a simulação e salva histórico e retorna resultado verificável se
   vi.mocked(auth).mockResolvedValue({ user: { id: "operator" } } as never);
   const saveSimulation = vi.fn().mockResolvedValue({});
   // O histórico é independente: não há método para criar uma operação neste mock.
-  vi.mocked(getDb).mockReturnValue({ simulation: { create: saveSimulation }, user: { findUnique: vi.fn().mockResolvedValue({ id: "operator", role: "CONSULTANT" }) } } as unknown as ReturnType<typeof getDb>);
+  vi.mocked(getDb).mockReturnValue({ simulation: { create: saveSimulation }, user: { findUnique: vi.fn().mockResolvedValue({ id: "operator", role: "CONSULTANT", isActive: true, sessionVersion: 0 }) } } as unknown as ReturnType<typeof getDb>);
   const timestamp = new Date().toISOString();
   vi.mocked(getQuote).mockResolvedValue({ sourceCurrency: "USD", targetCurrency: "BRL", exchangeRate: "5.12345678", quoteProvider: "Frankfurter / ECB", quoteReferenceDate: timestamp.slice(0, 10), quoteFetchedAt: timestamp, quoteTimestamp: timestamp, quoteTimestampKind: "FETCHED_AT" });
   const response = await POST(request());
@@ -50,7 +50,7 @@ it("não entrega uma simulação confirmável quando o histórico não pode ser 
   vi.stubEnv("AUTH_SECRET", "segredo exclusivo do teste da rota");
   vi.mocked(auth).mockResolvedValue({ user: { id: "operator" } } as never);
   vi.mocked(getDb).mockReturnValue({
-    user: { findUnique: vi.fn().mockResolvedValue({ id: "operator", role: "CONSULTANT" }) },
+    user: { findUnique: vi.fn().mockResolvedValue({ id: "operator", role: "CONSULTANT", isActive: true, sessionVersion: 0 }) },
     simulation: { create: vi.fn().mockRejectedValue(new Error("database unavailable")) },
   } as unknown as ReturnType<typeof getDb>);
   const timestamp = new Date().toISOString();

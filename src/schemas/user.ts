@@ -17,3 +17,9 @@ export const loginSchema = z.strictObject({
   email: emailSchema,
   password: z.string().min(1, "Informe a senha.").max(128),
 });
+
+export const changeEmployeeAccessSchema = z.strictObject({
+  expectedRevision: z.number().int().min(0).max(2147483646),
+  role: z.enum(ROLES),
+  isActive: z.boolean(),
+});

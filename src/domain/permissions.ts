@@ -15,6 +15,7 @@ export function isRole(value: unknown): value is Role {
 export type Permission =
   | "employees:read"
   | "employees:create"
+  | "employees:manage-access"
   | "customers:read"
   | "customers:create"
   | "quotes:simulate"
@@ -33,7 +34,7 @@ const permissionsByRole: Record<Role, readonly Permission[]> = {
   CONSULTANT: ["customers:read", "customers:create", "quotes:simulate", "simulations:read", "operations:read", "proposals:create", "proposals:read", "proposals:accept", "requests:read", "audit:read"],
   OPERATIONS_ANALYST: ["customers:read", "operations:read", "operations:change-status", "operations:process", "requests:decide", "proposals:read", "requests:read", "audit:read"],
   MANAGER: ["customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
-  ADMIN: ["employees:read", "employees:create", "customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
+  ADMIN: ["employees:read", "employees:create", "employees:manage-access", "customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
 };
 
 // O perfil deve vir da sessão verificada no servidor, nunca do corpo da requisição.

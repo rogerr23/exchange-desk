@@ -16,13 +16,13 @@ Decisão aprovada em 31/10/2026: cada conta de funcionário terá exatamente um 
 - O administrador não herda automaticamente as funções comerciais ou operacionais dos demais perfis.
 - O criador de uma solicitação não pode aprová-la. A restrição considera a identidade do funcionário e continua válida mesmo após mudança de perfil.
 - Uma futura mudança de função substitui o perfil da conta, preservando autoria e histórico; não acrescenta um segundo perfil.
-- O exemplo de mudança de função não significa que uma tela de edição de perfil já exista.
+- A troca de perfil está implementada na gestão de acessos, preservando identidade e registros anteriores.
 
 ## Pontos ainda a definir
 
 Esta aprovação fecha a escolha de um perfil por funcionário e as responsabilidades acima. Não aprova automaticamente todas as propostas do plano externo da V1.1.
 
-Antes das implementações correspondentes, detalhar o tratamento de operações legadas abertas em outros ambientes, a validade comercial, as ações de gestão de acessos. O processamento e a recuperação implementados estão detalhados no documento de fluxo. Identificadores implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`.
+O tratamento de operações legadas abertas em outros ambientes continua exigindo avaliação antes de migrá-los. Validade, processamento e recuperação estão detalhados nos documentos de fluxo. A gestão de acessos implementada está em [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md). Identificadores implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`.
 
 ## Leitura por perfil e suporte administrativo
 
@@ -47,7 +47,7 @@ O acesso administrativo a propostas e solicitações para suporte foi aprovado, 
 
 A referência local da V1 e os dados existentes foram conferidos. As três migrações da V1 foram conferidas; a migração dos perfis também foi aplicada nos bancos locais da aplicação e de testes. Neste ambiente existe apenas um administrador e nenhum registro operacional.
 
-O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). O processamento simulado e a recuperação estão implementados. A próxima etapa é detalhar a gestão de acessos.
+O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). O processamento simulado e a recuperação estão implementados. A gestão de acessos também está implementada. A próxima etapa é revisar os painéis e executar a validação final da V1.1.
 
 ## Ciclo de propostas e solicitações
 
@@ -59,3 +59,7 @@ Decisões aprovadas em 31/10/2026:
 - O administrador pode consultar propostas e solicitações para suporte, sem alterá-las.
 
 A primeira entrega, suas regras de integridade e as pendências estão em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md).
+
+## Gestão de acessos implementada
+
+A continuidade da V1.1 incluiu troca de perfil, desativação e reativação pelo administrador. O detalhamento técnico, as restrições de alteração própria, preservação de administrador ativo, histórico e revogação de sessões estão em [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md). A reativação preserva a senha existente; recuperação ou redefinição de senha não foi acrescentada a este escopo.

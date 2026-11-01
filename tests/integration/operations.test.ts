@@ -30,7 +30,7 @@ async function legacyOperation() {
 beforeEach(async () => {
   await db.proposalAuditEvent.deleteMany(); await db.exchangeRequest.deleteMany(); await db.proposal.deleteMany();
   await db.operationProcessingAttempt.deleteMany(); await db.operationAuditEvent.deleteMany(); await db.exchangeOperation.deleteMany();
-  await db.customer.deleteMany(); await db.simulation.deleteMany(); await db.user.deleteMany();
+  await db.customer.deleteMany(); await db.simulation.deleteMany(); await db.employeeAccessEvent.deleteMany(); await db.user.deleteMany();
   authorId = (await db.user.create({ data: { name: "Consultor", email: "author@example.test", passwordHash: "unused", role: "CONSULTANT" } })).id;
   analystId = (await db.user.create({ data: { name: "Analista", email: "analyst@example.test", passwordHash: "unused", role: "OPERATIONS_ANALYST" } })).id;
   customerId = (await db.customer.create({ data: { name: "Cliente", fictionalCpf: "00000000000", email: "customer@example.test", phone: "11900000000" } })).id;

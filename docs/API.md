@@ -30,8 +30,10 @@ Todos os endpoints abaixo exigem sessão. Os serviços consultam o funcionário 
 
 | Método e rota | Permissão | Resultado |
 | --- | --- | --- |
-| `GET /api/funcionarios` | Administrador | Lista com id, nome, e-mail e perfil |
-| `POST /api/funcionarios` | Administrador | Cria funcionário e retorna seus dados públicos |
+| `GET /api/funcionarios` | Administrador | Lista com id, nome, e-mail, perfil, situação e revisão |
+| `POST /api/funcionarios` | Administrador | Cria funcionário ativo e retorna seus dados públicos |
+| `GET /api/funcionarios/:id` | Administrador | Dados públicos e histórico de alterações de acesso |
+| `PATCH /api/funcionarios/:id` | Administrador | Substitui perfil e situação, com revisão esperada e histórico atômico |
 | `GET /api/clientes` | Quatro perfis, conforme escopo | Lista os clientes disponíveis |
 | `POST /api/clientes` | Consultor | Cria cliente |
 | `GET /api/clientes/:id` | Quatro perfis, conforme escopo | Consulta um cliente; 404 se ausente ou fora do escopo |
@@ -216,3 +218,21 @@ O servidor obtém o cenário persistido e finaliza como `COMPLETED` ou `FAILED`.
 Ambas as rotas retornam HTTP 200 `{ data: ... }` com `Cache-Control: no-store` e os detalhes da operação. Detalhes GET e respostas incluem `processingAttemptCount` e `processingAttempts`, em ordem decrescente de número, com `id`, `number`, `scenario`, `startedBy: { id, name }`, `startedAt`, `readyAt`, `finishedAt` e `failureReason`. Resultado e motivo são persistidos; valores e referência cambial permanecem inalterados. Auditoria registra início e resultado atomicamente com a operação e a tentativa.
 
 As consultas GET não finalizam tentativas. A tela do analista chama o POST de resultado automaticamente enquanto aberta; após interrupção, um analista pode retomar a mesma tentativa. Não há processamento autônomo em segundo plano. Uma falha simulada permite nova tentativa na mesma operação; uma falha técnica de persistência desfaz a transação e permite reenvio seguro. Regras completas em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
+
+## Gestão de acessos de funcionários
+
+`PATCH /api/funcionarios/:id` exige `employees:manage-access`, sessão de administrador ativo e origem válida. Corpo estrito:
+
+```json
+{ "expectedRevision": 0, "role": "MANAGER", "isActive": true }
+```
+
+`role` aceita os quatro perfis. `isActive` deve ser booleano. `expectedRevision` é um inteiro entre 0 e 2147483646, obtido na consulta como `accessRevision`. Nome, e-mail, senha e `sessionVersion` não são editáveis por esta rota. Campos extras ou entradas inválidas retornam 400.
+
+Sucesso: HTTP 200 `{ data: ... }` com `Cache-Control: no-store`. GET e PATCH retornam `id`, `name`, `email`, `role`, `isActive`, `accessRevision` e `accessChanges` em ordem de revisão decrescente. Cada evento contém `id`, `revision`, `previousRole`, `newRole`, `previousIsActive`, `newIsActive`, `occurredAt` e `actor: { id, name }`. A listagem e o cadastro retornam os campos públicos sem histórico. Não retornam senha, hash ou versão interna de sessão.
+
+Reenvio da mesma mudança imediatamente anterior retorna o registro existente; estado igual na revisão atual não cria evento. Revisão antiga divergente ou ultrapassada retorna 409 `ACCESS_CONFLICT`. Evento, revisão, perfil, situação e eventual revogação são atômicos. Falha de histórico desfaz toda a alteração.
+
+Alteração do próprio acesso retorna 403 `SELF_ACCESS_CHANGE_FORBIDDEN`. O sistema preserva um administrador ativo e revalida o executor dentro da transação após serializar as alterações. Se o executor perdeu o perfil, retorna 403; se foi desativado ou sua sessão foi revogada, 401. A proteção adicional de último administrador usa 409 `LAST_ADMIN_REQUIRED`. Funcionário inexistente retorna 404. Os demais perfis recebem 403 também na consulta de detalhes; sem sessão válida, 401.
+
+Desativação bloqueia login e sessões abertas. Reativação permite novo login com a senha existente e mantém os cookies anteriores revogados. Troca de perfil atualiza as permissões e o perfil de sessão nas próximas requisições. Páginas privadas redirecionam sessões inválidas para `/login`; `/api/auth/session` retorna `null` para sessão revogada. A alteração preserva ID, autoria, senha e histórico operacional. Fluxo e limites em [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md).

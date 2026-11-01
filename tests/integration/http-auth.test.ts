@@ -77,7 +77,7 @@ beforeAll(async () => {
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
   await db.simulation.deleteMany();
-  await db.user.deleteMany();
+  await db.employeeAccessEvent.deleteMany(); await db.user.deleteMany();
   await db.user.create({
     data: {
       name: "HTTP Admin",
@@ -385,13 +385,43 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   expect(completedHtml).toContain("Concluída");
   expect(completedHtml.replaceAll("<!-- -->", "")).toContain("Tentativa 2");
   expect(await db.exchangeOperation.count()).toBe(1);
-  await db.user.update({ where: { id: consultant.id }, data: { role: "MANAGER" } });
+  const accessPath = `/api/funcionarios/${consultant.id}`;
+  const changeAccess = (body: unknown, origin = base): RequestInit => ({ ...sendJson(body, origin), method: "PATCH" });
+  for (const jar of [operator, analyst, manager]) {
+    expect((await request(accessPath, jar)).status).toBe(403);
+    expect((await request(accessPath, jar, changeAccess({ expectedRevision: 0, role: "MANAGER", isActive: true }))).status).toBe(403);
+  }
+  expect((await request(accessPath, admin, changeAccess({ expectedRevision: 0, role: "MANAGER", isActive: true }, "https://other.example"))).status).toBe(403);
+  expect((await request(`/api/funcionarios/${session.user.id}`, admin, changeAccess({ expectedRevision: 0, role: "MANAGER", isActive: false }))).status).toBe(403);
+  const managedPage = await (await request(`/funcionarios/${consultant.id}`, admin)).text();
+  expect(managedPage).toContain("Gerenciar acesso");
+  expect(managedPage).toContain("Confirmar alteração de acesso");
+  const changedRole = await request(accessPath, admin, changeAccess({ expectedRevision: 0, role: "MANAGER", isActive: true }));
+  expect(changedRole.status).toBe(200);
+  expect((await changedRole.json()).data).toMatchObject({ role: "MANAGER", accessRevision: 1 });
   expect((await request("/api/simulacoes", operator)).status).toBe(403);
   expect((await request("/api/clientes", operator, sendJson(customer))).status).toBe(403);
   const changedPanel = await (await request("/inicio", operator)).text();
   expect(changedPanel).toContain("Gerente");
   expect(changedPanel).not.toContain("Nova simulação");
-  await db.user.update({ where: { id: consultant.id }, data: { role: "CONSULTANT" } });
+  expect((await (await request("/api/auth/session", operator)).json()).user.role).toBe("MANAGER");
+  expect((await request(accessPath, admin, changeAccess({ expectedRevision: 1, role: "CONSULTANT", isActive: true }))).status).toBe(200);
+  const staleCookies = new Map(operator);
+  expect((await request(accessPath, admin, changeAccess({ expectedRevision: 2, role: "CONSULTANT", isActive: false }))).status).toBe(200);
+  expect((await request("/api/operacoes", new Map(staleCookies))).status).toBe(401);
+  expect((await request("/api/clientes", await signIn("http-operator@example.test"))).status).toBe(401);
+  const inactivePanel = await request("/inicio", new Map(staleCookies));
+  expect(inactivePanel.headers.get("location") || await inactivePanel.text()).toContain("/login");
+  expect((await request(accessPath, admin, changeAccess({ expectedRevision: 3, role: "CONSULTANT", isActive: true }))).status).toBe(200);
+  expect((await request("/api/operacoes", new Map(staleCookies))).status).toBe(401);
+  expect(await (await request("/api/auth/session", new Map(staleCookies))).json()).toBeNull();
+  const freshOperator = await signIn("http-operator@example.test");
+  expect((await request("/api/operacoes", freshOperator)).status).toBe(200);
+  const currentAccess = (await (await request(accessPath, admin)).json()).data;
+  expect(currentAccess.accessChanges).toHaveLength(4);
+  expect(JSON.stringify(currentAccess)).not.toMatch(/passwordHash|sessionVersion/);
+  operator.clear();
+  for (const [name, value] of freshOperator) operator.set(name, value);
 
   const { csrfToken } = await (
     await request("/api/auth/csrf", operator)

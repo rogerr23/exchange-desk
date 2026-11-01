@@ -63,6 +63,11 @@ model User {
   email        String                @unique @db.VarChar(254)
   passwordHash String                @db.VarChar(255)
   role         Role                  @default(CONSULTANT)
+  isActive     Boolean @default(true)
+  sessionVersion Int @default(0)
+  accessRevision Int @default(0)
+  accessChanges EmployeeAccessEvent[] @relation("AccessTarget")
+  performedAccessChanges EmployeeAccessEvent[] @relation("AccessActor")
   createdAt    DateTime              @default(now()) @db.Timestamptz(3)
   operations   ExchangeOperation[]
   simulations  Simulation[]
@@ -227,4 +232,21 @@ model OperationProcessingAttempt {
 
   @@unique([operationId, number])
   @@index([startedById])
+}
+
+model EmployeeAccessEvent {
+  id String @id @default(cuid())
+  employeeId String
+  actorId String
+  revision Int
+  previousRole Role
+  newRole Role
+  previousIsActive Boolean
+  newIsActive Boolean
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
+  employee User @relation("AccessTarget", fields: [employeeId], references: [id], onDelete: Restrict)
+  actor User @relation("AccessActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, revision])
+  @@index([actorId])
 }

@@ -7,13 +7,14 @@ A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo inter
 ## Escopo implementado
 
 - Login com um perfil por funcionário: Consultor de Câmbio, Analista de Operações, Gerente ou Administrador.
-- Cadastro de funcionários exclusivamente pelo administrador, sem cadastro público.
+- Cadastro e gestão de acessos exclusivamente pelo administrador: troca de perfil, desativação e reativação com histórico e revogação de sessões.
 - Cadastro de clientes com nome, CPF, e-mail e telefone.
 - Moedas disponíveis: BRL, USD e EUR.
 - Consulta de cotações em uma API pública.
 - Simulações de conversão entre moedas diferentes.
 - Registro e acompanhamento de operações vinculadas a clientes.
-- Fluxo de status: **Pendente → Em análise → Concluída ou Cancelada**.
+- Operações aprovadas: **Pendente → Processando → Concluída ou Falha**, com novas tentativas após falha.
+- Operações legadas: **Pendente → Em análise → Concluída ou Cancelada**.
 - Auditoria com data, funcionário responsável, operação e alterações de status.
 
 ## Tecnologias
@@ -167,7 +168,7 @@ A migração `20261031210000_v1_1_roles` implementa `CONSULTANT`, `OPERATIONS_AN
 
 A migração recusa bancos que ainda tenham contas `OPERATOR`, exigindo atribuição explícita antes da evolução. Não converte usuários nem reescreve autoria automaticamente. Outro ambiente com operadores exige um plano de atribuição e migração próprio antes de executar `db:deploy`.
 
-Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite e solicitações aguardando análise já estão disponíveis. Aprovação/rejeição e processamento simulado com recuperação estão implementados. Edição de perfil, desativação e recuperação de acesso também continuam pendentes.
+Esta entrega separa os perfis, permissões, navegação e painéis sobre o fluxo existente `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Propostas, aceite e solicitações aguardando análise já estão disponíveis. Aprovação/rejeição e processamento simulado com recuperação estão implementados. Troca de perfil, desativação e reativação estão disponíveis em `/funcionarios/:id`, conforme [V1_1_ACCESS_MANAGEMENT.md](./docs/V1_1_ACCESS_MANAGEMENT.md). Recuperação de senha permanece fora desta entrega.
 
 ### Propostas e aceite simulado
 

@@ -51,7 +51,15 @@ export default async function EmployeesPage({
             Acesso restrito ao administrador
           </span>
         </div>
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-line sm:hidden">
+          {employees.length ? employees.map(employee => <article key={employee.id} className="space-y-3 p-5">
+            <p className="break-words text-sm font-semibold">{employee.name}</p>
+            <p className="break-all text-xs text-muted">{employee.email}</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-md bg-canvas px-2.5 py-1 font-medium">{ROLE_LABELS[employee.role]}</span><span>{employee.isActive ? "Ativo" : "Desativado"}</span></div>
+            <Link href={`/funcionarios/${employee.id}`} className="inline-block text-sm font-semibold text-brand-ink underline">Gerenciar acesso<span className="sr-only"> de {employee.name}</span></Link>
+          </article>) : <p className="p-5 text-sm text-muted">Nenhum funcionário cadastrado.</p>}
+        </div>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full text-left text-sm">
             <thead className="bg-canvas/60 text-xs text-muted">
               <tr>
@@ -64,6 +72,8 @@ export default async function EmployeesPage({
                 <th scope="col" className="px-6 py-4 font-medium">
                   Perfil de acesso
                 </th>
+                <th scope="col" className="px-6 py-4 font-medium">Situação</th>
+                <th scope="col" className="px-6 py-4 font-medium">Acesso</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -87,11 +97,13 @@ export default async function EmployeesPage({
                       {ROLE_LABELS[employee.role]}
                     </span>
                   </td>
+                  <td className="px-6 py-4">{employee.isActive ? "Ativo" : "Desativado"}</td>
+                  <td className="px-6 py-4"><Link href={`/funcionarios/${employee.id}`} className="font-semibold text-brand-ink underline">Gerenciar<span className="sr-only"> acesso de {employee.name}</span></Link></td>
                 </tr>
               ))}
               {employees.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-6 py-14 text-center text-muted">
+                  <td colSpan={5} className="px-6 py-14 text-center text-muted">
                     Nenhum funcionário cadastrado.
                   </td>
                 </tr>

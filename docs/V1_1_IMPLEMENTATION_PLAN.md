@@ -1,6 +1,6 @@
 # Plano de implementação — ExchangeDesk V1.1
 
-As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista e processamento simulado com recuperação estão implementados.
+As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). A gestão de acessos está detalhada em [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista e processamento simulado com recuperação estão implementados.
 
 ## 1. Referência da V1
 
@@ -90,7 +90,7 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 2. Administrador local: preservado conforme aprovação. Atribuição de contas `OPERATOR` em outros ambientes continua exigindo definição explícita; a migração recusa bancos que ainda contenham essas contas.
 3. Fluxo de propostas, aceite e decisão implementado; processamento e recuperação detalhados em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
 4. Validade definida como prazo restante da simulação; aceite válido preserva os valores para análise e processamento posteriores.
-5. Detalhar quais ações compõem a gestão de acessos (por exemplo, troca de perfil e desativação). A V1 só oferece cadastro e consulta de funcionários.
+5. Gestão de acessos implementada: troca de perfil, desativação e reativação, com revogação de sessões, histórico e preservação de administrador ativo. Recuperação de senha não faz parte desta entrega.
 
 ## 5. Andamento
 
@@ -106,4 +106,6 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 - Validação da decisão: 40 testes unitários e 28 de integração passaram, além de lint, tipos, schema e build. Conferência visual de aprovação/rejeição concluída, incluindo telas de 320 e 390 pixels. Migração aplicada nos bancos locais da aplicação e de testes.
 - Processamento simulado: implementado com tentativas persistidas, cenários explícitos, falha, retomada e nova tentativa na mesma operação; regras em [V1_1_PROCESSING_FLOW.md](./V1_1_PROCESSING_FLOW.md).
 - Validação do processamento: 40 testes unitários e 34 de integração passaram, além de lint, tipos, schema e build. Fluxo visual de falha e nova tentativa conferido em desktop e celular. Migração aplicada nos bancos locais da aplicação e de testes.
-- Próximo passo: detalhar e implementar a gestão de acessos; depois, revisão dos painéis e validação final da V1.1.
+- Gestão de acessos: implementada conforme [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md), preservando autoria, senha e vínculos existentes.
+- Validação dos acessos: 41 testes unitários e 43 de integração passaram, além de lint, tipos, schema e build. Interface conferida em desktop e telas de 320 e 390 pixels. Migração aplicada nos bancos locais da aplicação e de testes.
+- Próximo passo: revisão dos painéis e validação final da V1.1.
