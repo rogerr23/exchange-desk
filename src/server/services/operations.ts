@@ -9,6 +9,7 @@ import { AppError } from "@/server/errors";
 
 const operationSelect = {
   id: true, customerId: true, createdById: true,
+  request: { select: { id: true } },
   sourceCurrency: true, targetCurrency: true, sourceAmount: true, targetAmount: true,
   exchangeRate: true, quoteProvider: true, quoteReferenceDate: true,
   quoteTimestamp: true, quoteTimestampKind: true, quoteFetchedAt: true,
@@ -77,8 +78,9 @@ export async function changeOperationStatus(inputId: string, input: unknown) {
   }
   const operation = await getDb().$transaction(async (tx) => {
     const scope = operationScope(actor);
-    const current = await tx.exchangeOperation.findFirst({ where: { id, ...scope }, select: { status: true, createdById: true } });
+    const current = await tx.exchangeOperation.findFirst({ where: { id, ...scope }, select: { status: true, createdById: true, request: { select: { id: true } } } });
     if (!current) throw new AppError(404, "NOT_FOUND", "Operação não encontrada.");
+    if (current.request) throw new AppError(409, "PROCESSING_NOT_AVAILABLE", "Esta operação aguarda a etapa de processamento simulado, ainda indisponível.");
     if (current.createdById === actor.id) {
       throw new AppError(403, "SELF_REVIEW_FORBIDDEN", "Você não pode conduzir a análise de uma operação que criou.");
     }

@@ -1,6 +1,6 @@
 # Propostas e solicitações — desenho da próxima entrega
 
-Ciclo, validade e consulta administrativa aprovados em 31/10/2026. A primeira entrega está implementada: propostas, aceite simulado e solicitações aguardando análise. Aprovação/rejeição e processamento simulado permanecem para a próxima entrega.
+Ciclo, validade e consulta administrativa aprovados em 31/10/2026. Propostas, aceite simulado, solicitações e decisão do analista estão implementados. O processamento simulado permanece para a próxima entrega.
 
 ## Ciclo aprovado
 
@@ -15,14 +15,14 @@ Salvar proposta, registrar aceite e aprovar são ações distintas. A interface 
 
 ## Primeira entrega implementada
 
-Criação, listagem e detalhes de propostas, aceite simulado e consulta das solicitações geradas estão implementados. A decisão do analista e o processamento virão em seguida, após definição das transições e recuperação correspondentes.
+Criação, listagem e detalhes de propostas, aceite simulado e consulta das solicitações geradas estão implementados. A decisão do analista está implementada na entrega seguinte, descrita abaixo. O processamento e sua recuperação continuam pendentes.
 
 | Registro | Estado | Regra |
 | --- | --- | --- |
 | Proposta | Aguardando aceite | Pode receber aceite pelo consultor autor enquanto válida |
 | Proposta | Expirada | Prazo encerrado sem aceite; exige nova simulação e nova proposta |
 | Proposta | Aceita | Valores preservados e solicitação única gerada; sem novo aceite |
-| Solicitação | Aguardando análise | Consulta pelo autor e pelos perfis autorizados; decisão posterior pelo analista |
+| Solicitação | Aguardando análise | Consulta pelo autor e pelos perfis autorizados; decisão exclusiva do analista |
 
 A expiração deve ser conferida no servidor na ação de aceite. A apresentação de uma proposta expirada não depende de agendamento ou alteração em segundo plano. Uma proposta aceita não volta a expirar por leitura posterior.
 
@@ -54,7 +54,8 @@ Operações anteriores permanecem identificáveis e consultáveis. Não converte
 - Operação: somente após aprovação do analista.
 - Validade da proposta: prazo restante dos 15 minutos da simulação, sem renovação ao salvar.
 - Administrador: consulta de propostas e solicitações para suporte aprovada.
-- Para a entrega posterior: estados da decisão do analista, motivo de rejeição, processamento simulado, falhas e recuperação.
+- Decisão do analista: implementada conforme as regras abaixo.
+- Para a entrega posterior: processamento simulado, falhas e recuperação.
 
 ## Entrega técnica
 
@@ -71,3 +72,22 @@ Passaram 40 testes unitários e 23 de integração, além de lint, tipos, schema
 A conferência visual usou somente o banco descartável: criação de proposta com cotação real Frankfurter/ECB, aceite simulado, solicitação e histórico, proposta expirada, consulta administrativa sem ação de aceite, desktop e telas de 390 e 320 pixels sem rolagem horizontal da página. Contas e registros temporários são removidos ao concluir.
 
 A migração foi aplicada nos bancos locais da aplicação e de testes. O banco da aplicação ficou alinhado com as cinco migrações existentes, sem conversão ou exclusão de registros anteriores. A conferência terminou com remoção dos dados temporários do banco descartável e encerramento do servidor temporário.
+
+## Decisão do analista — segunda entrega
+
+- Estados: `PENDING_REVIEW → APPROVED | REJECTED`. A decisão é definitiva, sem edição de motivo ou reabertura.
+- Somente `OPERATIONS_ANALYST` tem `requests:decide`. O autor não pode aprovar nem rejeitar a própria solicitação, inclusive após mudança de perfil.
+- A rejeição exige motivo textual com 1 a 1000 caracteres após remoção de espaços nas extremidades e não cria operação. Novo atendimento exige nova proposta.
+- A aprovação cria uma operação `PENDING`, vinculada exclusivamente à solicitação, preservando cliente, consultor autor, moedas, valores e todos os metadados da cotação aceita. O analista fica registrado como responsável pela decisão e pela criação na auditoria, sem substituir o consultor na autoria comercial.
+- O prazo de aceite não é reavaliado na decisão: o aceite válido já preservou os valores para análise posterior.
+- Solicitação, operação, vínculo e eventos de auditoria são gravados atomicamente. Falha em qualquer histórico desfaz toda a decisão.
+- Reenvio da mesma decisão (e do mesmo motivo normalizado na rejeição) retorna o resultado original, sem substituir responsável ou data. Decisão diferente ou edição de motivo retorna 409 `REQUEST_ALREADY_DECIDED`.
+- Decisões concorrentes disputam uma atualização condicional de `PENDING_REVIEW`; apenas uma produz efeitos. Aprovações simultâneas geram uma operação e um evento de cada histórico.
+- A consulta informa responsável, instante, motivo e `operationId`, conforme o escopo já existente. A proposta exibe os eventos `APPROVED` e `REJECTED` em seu histórico.
+- Operações criadas por aprovação não usam as transições legadas: o endpoint antigo retorna 409 `PROCESSING_NOT_AVAILABLE`. A tela oferece a consulta da decisão de origem e informa que o processamento simulado está pendente. Operações legadas preservam seu comportamento.
+
+Migração aditiva: `20261031230000_request_decisions`. Não altera propostas aceitas, solicitações pendentes ou operações preexistentes.
+
+Validação da segunda entrega: lint, tipos, schema Prisma e build passaram; 40 testes unitários e 28 de integração passaram. Inclui HTTP real com cookies dos quatro perfis, decisão própria após mudança de função, concorrência de decisões iguais e opostas, preservação dos valores após o prazo original, motivo obrigatório e imutável, bloqueio das transições legadas e rollback em falhas reais dos dois históricos. O aviso conhecido de consultas simultâneas do `pg` apareceu sem falhas.
+
+Conferência visual: aprovação em desktop, rejeição com motivo e confirmação explícita em celular; larguras de 320 e 390 pixels sem rolagem horizontal da página. Foram usadas fixtures identificadas como fictícias apenas no banco descartável; as contas e os registros temporários foram removidos. Migração aplicada nos bancos locais da aplicação e de testes.

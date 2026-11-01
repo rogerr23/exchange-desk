@@ -154,8 +154,9 @@ export default async function OperationPage({
           </section>
         </div>
         <div className="min-w-0 space-y-6">
-          {can(actor.role, "operations:change-status") && actor.id !== operation.createdById && <StatusActions id={operation.id} status={operation.status} />}
-          {can(actor.role, "operations:change-status") && actor.id === operation.createdById && <Notice>Você não pode conduzir a análise de uma operação que criou.</Notice>}
+          {!operation.request && can(actor.role, "operations:change-status") && actor.id !== operation.createdById && <StatusActions id={operation.id} status={operation.status} />}
+          {!operation.request && can(actor.role, "operations:change-status") && actor.id === operation.createdById && <Notice>Você não pode conduzir a análise de uma operação que criou.</Notice>}
+          {operation.request && <section className="surface-card space-y-4 p-6"><h2 className="text-sm font-semibold">Solicitação aprovada</h2><p className="text-sm leading-6 text-muted">Esta operação aguarda o processamento simulado, que estará disponível em uma próxima etapa.</p><Link href={`/solicitacoes/${operation.request.id}`} className="text-sm font-semibold text-brand-ink underline">Ver decisão e proposta de origem</Link></section>}
           <section className="surface-card p-6">
             <h2 className="text-sm font-semibold">Dados do registro</h2>
             <dl className="mt-5 space-y-5">

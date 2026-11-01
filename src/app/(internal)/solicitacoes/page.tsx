@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { requestStatusLabels } from "@/domain/proposal-status";
 import { dateTime, money } from "@/lib/format";
 import { requirePagePermission } from "@/server/auth/page-access";
 import { listRequests } from "@/server/services/proposals";
@@ -17,7 +18,7 @@ export default async function RequestsPage() {
         <div className="min-w-0"><Link href={`/solicitacoes/${request.id}`} className="break-words font-semibold text-brand-ink underline">{request.proposal.customer.name}</Link>
           <p className="mt-2 break-words text-sm tabular-nums">{money(request.proposal.sourceAmount, request.proposal.sourceCurrency)} → {money(request.proposal.targetAmount, request.proposal.targetCurrency)}</p>
           <p className="mt-2 text-xs text-muted">{dateTime(request.createdAt)} · Brasília · {request.proposal.createdBy.name}</p></div>
-        <span className="rounded-full bg-canvas px-3 py-2 text-xs font-semibold">Aguardando análise</span>
+        <span className="rounded-full bg-canvas px-3 py-2 text-xs font-semibold">{requestStatusLabels[request.status]}</span>
       </article>)}</div>}
     </section>
   </>;

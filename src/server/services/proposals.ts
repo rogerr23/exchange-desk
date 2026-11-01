@@ -2,7 +2,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import type { Role } from "@/domain/permissions";
 import { proposalStatus } from "@/domain/proposal-status";
-import { createProposalSchema, acceptProposalSchema } from "@/schemas/proposal";
+import { createProposalSchema, acceptProposalSchema, decideRequestSchema } from "@/schemas/proposal";
 import { operationIdSchema } from "@/schemas/operation";
 import { requirePermission } from "@/server/auth/authorize";
 import { getDb } from "@/server/db/client";
@@ -129,6 +129,8 @@ export async function acceptProposal(inputId: string, input: unknown) {
 
 const requestFields = {
   id: true, proposalId: true, createdById: true, status: true, createdAt: true,
+  operationId: true, decidedAt: true, rejectionReason: true,
+  decidedBy: { select: { id: true, name: true } },
   proposal: { select: detailFields },
 } satisfies Prisma.ExchangeRequestSelect;
 
@@ -148,5 +150,47 @@ export async function getExchangeRequest(inputId: string) {
     where: { id, ...(actor.role === "CONSULTANT" ? { createdById: actor.id } : {}) }, select: requestFields,
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Solicitação não encontrada.");
+  return { ...row, proposal: serialize(row.proposal) };
+}
+
+// A atualização condicional serializa decisões concorrentes na própria solicitação.
+export async function decideExchangeRequest(inputId: string, input: unknown) {
+  const actor = await requirePermission("requests:decide");
+  const id = operationIdSchema.parse(inputId);
+  const data = decideRequestSchema.parse(input);
+  const rejectionReason = data.decision === "REJECTED" ? data.rejectionReason : null;
+  const row = await getDb().$transaction(async (tx) => {
+    const current = await tx.exchangeRequest.findUnique({ where: { id }, select: requestFields });
+    if (!current) throw new AppError(404, "NOT_FOUND", "Solicitação não encontrada.");
+    if (current.createdById === actor.id) {
+      throw new AppError(403, "SELF_REVIEW_FORBIDDEN", "Você não pode decidir sobre uma solicitação que criou.");
+    }
+    function repeated(latest: typeof current) {
+      if (latest && latest.status === data.decision && latest.rejectionReason === rejectionReason) return latest;
+      throw new AppError(409, "REQUEST_ALREADY_DECIDED", "Esta solicitação já foi decidida. Atualize os dados para conferir o resultado.");
+    }
+    if (current.status !== "PENDING_REVIEW") return repeated(current);
+    const now = new Date();
+    const updated = await tx.exchangeRequest.updateMany({
+      where: { id, status: "PENDING_REVIEW" },
+      data: { status: data.decision, decidedById: actor.id, decidedAt: now, rejectionReason },
+    });
+    if (!updated.count) return repeated(await tx.exchangeRequest.findUniqueOrThrow({ where: { id }, select: requestFields }));
+    if (data.decision === "APPROVED") {
+      const proposal = await tx.proposal.findUniqueOrThrow({ where: { id: current.proposalId } });
+      const operation = await tx.exchangeOperation.create({ data: {
+        confirmationKey: proposal.confirmationKey, customerId: proposal.customerId, createdById: proposal.createdById,
+        sourceCurrency: proposal.sourceCurrency, targetCurrency: proposal.targetCurrency,
+        sourceAmount: proposal.sourceAmount, targetAmount: proposal.targetAmount, exchangeRate: proposal.exchangeRate,
+        quoteProvider: proposal.quoteProvider, quoteReferenceDate: proposal.quoteReferenceDate,
+        quoteTimestamp: proposal.quoteTimestamp, quoteTimestampKind: proposal.quoteTimestampKind,
+        quoteFetchedAt: proposal.quoteFetchedAt, status: "PENDING", createdAt: now,
+        auditEvents: { create: { actorId: actor.id, action: "CREATED", newStatus: "PENDING", occurredAt: now } },
+      }, select: { id: true } });
+      await tx.exchangeRequest.update({ where: { id }, data: { operationId: operation.id } });
+    }
+    await tx.proposalAuditEvent.create({ data: { proposalId: current.proposalId, actorId: actor.id, action: data.decision, occurredAt: now } });
+    return tx.exchangeRequest.findUniqueOrThrow({ where: { id }, select: requestFields });
+  });
   return { ...row, proposal: serialize(row.proposal) };
 }

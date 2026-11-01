@@ -7,12 +7,14 @@ import { auth } from "@/server/auth/config";
 import { getQuote } from "@/server/quotes/frankfurter";
 import { getDb } from "@/server/db/client";
 import { signSimulation, SIMULATION_TTL_MS } from "@/server/quotes/simulation-token";
-import { createProposal, acceptProposal, listProposals, getProposal, listRequests, getExchangeRequest } from "@/server/services/proposals";
+import { createProposal, acceptProposal, decideExchangeRequest, listProposals, getProposal, listRequests, getExchangeRequest } from "@/server/services/proposals";
 import { simulateConversion, listSimulations } from "@/server/services/simulations";
 import { POST, GET } from "@/app/api/propostas/route";
 import { POST as ACCEPT } from "@/app/api/propostas/[id]/aceite/route";
 import { GET as DETAIL } from "@/app/api/propostas/[id]/route";
 import { GET as REQUEST_DETAIL } from "@/app/api/solicitacoes/[id]/route";
+import { POST as DECIDE } from "@/app/api/solicitacoes/[id]/decisao/route";
+import { changeOperationStatus, getOperation } from "@/server/services/operations";
 import { ROLES, type Role } from "@/domain/permissions";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -168,4 +170,99 @@ it("exige sessão e protege mutações contra origem externa", async () => {
   expect((await POST(request({}))).status).toBe(401);
   expect((await ACCEPT(request(acceptance), params("missing"))).status).toBe(401);
   await expect(listRequests()).rejects.toMatchObject({ status: 401 });
+});
+
+async function pendingRequest() {
+  const { proposal } = await createProposal({ customerId, simulationToken: token() });
+  return (await acceptProposal(proposal.id, acceptance)).proposal.request!.id;
+}
+
+it("aprova uma única vez após o prazo de aceite, preservando valores, autoria e auditoria", async () => {
+  const id = await pendingRequest();
+  login(actors.OPERATIONS_ANALYST);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + SIMULATION_TTL_MS);
+  const results = await Promise.all([decideExchangeRequest(id, { decision: "APPROVED" }), decideExchangeRequest(id, { decision: "APPROVED" })]);
+  expect(results[0].operationId).toBe(results[1].operationId);
+  expect(results[0]).toMatchObject({ status: "APPROVED", decidedBy: { id: actors.OPERATIONS_ANALYST }, rejectionReason: null });
+  expect(await db.exchangeOperation.count()).toBe(1);
+  const operation = await db.exchangeOperation.findUniqueOrThrow({ where: { id: results[0].operationId! }, include: { auditEvents: true } });
+  expect(operation.createdById).toBe(actors.CONSULTANT);
+  expect(operation.sourceAmount.toFixed(2)).toBe("100.00");
+  expect(operation.targetAmount.toFixed(2)).toBe("512.35");
+  expect(operation.exchangeRate.toFixed(8)).toBe("5.12345678");
+  expect(operation.auditEvents).toMatchObject([{ actorId: actors.OPERATIONS_ANALYST, action: "CREATED", newStatus: "PENDING" }]);
+  expect(results[0].proposal.auditEvents.map((event) => event.action)).toEqual(["CREATED", "ACCEPTED", "APPROVED"]);
+  await expect(changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "PROCESSING_NOT_AVAILABLE" });
+  await expect(decideExchangeRequest(id, { decision: "REJECTED", rejectionReason: "Outro resultado" })).rejects.toMatchObject({ code: "REQUEST_ALREADY_DECIDED" });
+  login(actors.CONSULTANT);
+  expect((await getOperation(operation.id)).createdById).toBe(actors.CONSULTANT);
+  expect((await getExchangeRequest(id)).operationId).toBe(operation.id);
+});
+
+it("rejeita com motivo obrigatório e imutável, sem gerar operação", async () => {
+  const id = await pendingRequest(); login(actors.OPERATIONS_ANALYST);
+  for (const input of [{ decision: "REJECTED" }, { decision: "REJECTED", rejectionReason: "  " }, { decision: "REJECTED", rejectionReason: "x".repeat(1001) }, { decision: "APPROVED", sourceAmount: "200" }]) {
+    expect((await DECIDE(request(input), params(id))).status).toBe(400);
+  }
+  const input = { decision: "REJECTED", rejectionReason: "  Dados inconsistentes  " };
+  const results = await Promise.all([decideExchangeRequest(id, input), decideExchangeRequest(id, input)]);
+  expect(results[0]).toMatchObject({ status: "REJECTED", rejectionReason: "Dados inconsistentes", operationId: null });
+  expect(results[0].decidedAt).toEqual(results[1].decidedAt);
+  expect(await db.exchangeOperation.count()).toBe(0);
+  expect(await db.proposalAuditEvent.count({ where: { action: "REJECTED" } })).toBe(1);
+  await expect(decideExchangeRequest(id, { decision: "REJECTED", rejectionReason: "Motivo alterado" })).rejects.toMatchObject({ code: "REQUEST_ALREADY_DECIDED" });
+});
+
+it("resolve aprovação e rejeição concorrentes com uma decisão e sem efeitos parciais", async () => {
+  const id = await pendingRequest(); login(actors.OPERATIONS_ANALYST);
+  const results = await Promise.allSettled([decideExchangeRequest(id, { decision: "APPROVED" }), decideExchangeRequest(id, { decision: "REJECTED", rejectionReason: "Dados inconsistentes" })]);
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  const failed = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+  expect(failed.reason).toMatchObject({ code: "REQUEST_ALREADY_DECIDED" });
+  const row = await getExchangeRequest(id);
+  expect(await db.exchangeOperation.count()).toBe(row.status === "APPROVED" ? 1 : 0);
+  expect(await db.proposalAuditEvent.count()).toBe(3);
+});
+
+it("protege decisão por perfil, identidade após mudança de função, sessão e origem", async () => {
+  const id = await pendingRequest();
+  for (const role of ["CONSULTANT", "MANAGER", "ADMIN"] as const) {
+    login(actors[role]); expect((await DECIDE(request({ decision: "APPROVED" }), params(id))).status).toBe(403);
+  }
+  login(actors.CONSULTANT);
+  await db.user.update({ where: { id: actors.CONSULTANT }, data: { role: "OPERATIONS_ANALYST" } });
+  for (const decision of [{ decision: "APPROVED" }, { decision: "REJECTED", rejectionReason: "Teste" }]) {
+    await expect(decideExchangeRequest(id, decision)).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
+  }
+  login(actors.OPERATIONS_ANALYST);
+  expect((await DECIDE(request({ decision: "APPROVED" }, "https://other.example"), params(id))).status).toBe(403);
+  expect((await DECIDE(request({ decision: "APPROVED" }), params("missing"))).status).toBe(404);
+  vi.mocked(auth).mockResolvedValue(null as never);
+  expect((await DECIDE(request({ decision: "APPROVED" }), params(id))).status).toBe(401);
+  expect(await db.exchangeOperation.count()).toBe(0);
+});
+
+it("desfaz decisão e operação se qualquer histórico falhar", async () => {
+  const id = await pendingRequest(); login(actors.OPERATIONS_ANALYST);
+  for (const table of ["ProposalAuditEvent", "OperationAuditEvent"] as const) {
+    await db.$executeRaw`CREATE FUNCTION reject_test_decision_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test audit failure'; END; $$`;
+    try {
+      // Os identificadores vêm exclusivamente da lista fixa acima.
+      await db.$executeRawUnsafe(`CREATE TRIGGER reject_test_decision_audit BEFORE INSERT ON "${table}" FOR EACH ROW EXECUTE FUNCTION reject_test_decision_audit()`);
+      await expect(decideExchangeRequest(id, { decision: "APPROVED" })).rejects.toThrow();
+      if (table === "ProposalAuditEvent") await expect(decideExchangeRequest(id, { decision: "REJECTED", rejectionReason: "Teste" })).rejects.toThrow();
+      expect(await getExchangeRequest(id)).toMatchObject({ status: "PENDING_REVIEW", operationId: null, decidedAt: null, decidedBy: null, rejectionReason: null });
+      expect(await db.exchangeOperation.count()).toBe(0);
+      expect(await db.proposalAuditEvent.count()).toBe(2);
+      expect(await db.operationAuditEvent.count()).toBe(0);
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER IF EXISTS reject_test_decision_audit ON "${table}"`);
+      await db.$executeRaw`DROP FUNCTION IF EXISTS reject_test_decision_audit()`;
+    }
+  }
+  const response = await DECIDE(request({ decision: "APPROVED" }), params(id));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(JSON.stringify(await response.json())).not.toMatch(/confirmationKey|passwordHash|simulationToken/);
 });

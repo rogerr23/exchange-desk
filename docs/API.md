@@ -136,7 +136,7 @@ Consultores consultam e aceitam apenas seus registros. Analistas consultam solic
 
 A proposta preserva os valores e `expiresAt` da simulação assinada, sem renovar o prazo original de 15 minutos. Token inválido, expirado ou de outro funcionário retorna 400 `INVALID_SIMULATION`. Uma simulação já usada por outro cliente ou por uma operação legada retorna 409 `SIMULATION_ALREADY_USED`.
 
-`status` da proposta é derivado: `AWAITING_ACCEPTANCE`, `EXPIRED` ou `ACCEPTED`. Aceite após expiração retorna 409 `PROPOSAL_EXPIRED`. O aceite grava `acceptedAt`, uma única solicitação `PENDING_REVIEW` e o evento `ACCEPTED` atomicamente. Reenvio de aceite já concluído retorna o registro existente mesmo depois do prazo. Falha de histórico desfaz criação/aceite. Não há operação gerada nesta etapa.
+`status` da proposta é derivado: `AWAITING_ACCEPTANCE`, `EXPIRED` ou `ACCEPTED`. Aceite após expiração retorna 409 `PROPOSAL_EXPIRED`. O aceite grava `acceptedAt`, uma única solicitação `PENDING_REVIEW` e o evento `ACCEPTED` atomicamente. Reenvio de aceite já concluído retorna o registro existente mesmo depois do prazo. Falha de histórico desfaz criação/aceite. O aceite não gera operação; ela é criada somente na aprovação.
 
 As telas são `/propostas`, `/propostas/:id`, `/solicitacoes` e `/solicitacoes/:id`. `/simulacoes` cria a proposta e abre seus detalhes; o aceite é uma segunda ação explícita, com confirmação de que é simulado.
 
@@ -151,7 +151,7 @@ Operações já existentes mantêm valores, autoria e histórico. Consultores co
 | `GET /api/operacoes/:id` | Detalhes e histórico, ou 404 fora do escopo |
 | `PATCH /api/operacoes/:id/status` | Transição legada com auditoria atômica |
 
-A aprovação do analista gerará a operação em uma próxima entrega. Não há endpoint de aprovação/rejeição ou processamento simulado disponível nesta etapa.
+A aprovação gera uma operação `PENDING`, com vínculo `request: { id }` para a solicitação de origem. As transições legadas não se aplicam a essas operações: retornam 409 `PROCESSING_NOT_AVAILABLE`. O processamento simulado será implementado na próxima etapa.
 
 A resposta usa `{ data: ... }`. Cada operação inclui identificadores, cliente (id, nome, CPF cadastrado), funcionário criador (id e nome), moedas, valores, taxa, referência e status, com datas de criação/atualização. Valores são strings com duas casas e a taxa com oito. `quoteReferenceDate` preserva `YYYY-MM-DD`; os demais instantes são ISO 8601. Detalhes e alteração também incluem `auditEvents` com ação, status anterior/novo, instante e autor (id e nome). Nunca retorna senha, hash de senha, token ou chave interna de confirmação.
 
@@ -166,3 +166,23 @@ await fetch(`/api/operacoes/${operation.id}/status`, {
 ```
 
 Transições: `PENDING → UNDER_REVIEW → COMPLETED | CANCELED`. Saltos, repetições, regressões e reabertura retornam 409 `INVALID_TRANSITION`. Se o status atual difere de `expectedStatus`, retorna 409 `STATUS_CONFLICT` e orienta atualizar os dados. Somente a transição vencedora em uma disputa grava seu evento. Falha de auditoria desfaz a alteração da operação. Cliente ou operação inexistente retorna 404. A interface de criação de propostas está em `/simulacoes`; a listagem e os detalhes com auditoria estão em `/operacoes` e `/operacoes/:id`. O painel `/inicio` apresenta as quantidades reais por status e o total de simulações salvas, limitados ao mesmo escopo de autoria, além de atividades recentes e orientações.
+
+## Decisão de solicitações
+
+`POST /api/solicitacoes/:id/decisao` exige sessão de analista e origem válida para mutações. Corpo estrito:
+
+```json
+{ "decision": "APPROVED" }
+```
+
+ou:
+
+```json
+{ "decision": "REJECTED", "rejectionReason": "Dados inconsistentes na conferência." }
+```
+
+Motivo obrigatório na rejeição, de 1 a 1000 caracteres após trim. Campos extras são recusados (400). A resposta é HTTP 200 `{ data: ... }`, com `Cache-Control: no-store`, contendo a solicitação e a proposta com histórico, além de `operationId`, `decidedAt`, `decidedBy: { id, name }` e `rejectionReason`. Esses campos são nulos enquanto pendente; uma rejeição mantém `operationId` nulo. Listagem e detalhes de solicitações retornam os mesmos campos, conforme o escopo do perfil.
+
+Aprovação/rejeição são definitivas. Reenvio da mesma decisão e motivo normalizado retorna o resultado original; decisão diferente ou motivo alterado retorna 409 `REQUEST_ALREADY_DECIDED`. A aprovação cria uma única operação com os valores aceitos, autoria comercial do consultor e evento de criação atribuído ao analista. Rejeição não cria operação. O prazo de aceite não limita a decisão posterior. Tudo é persistido em transação com os eventos `APPROVED`/`REJECTED` no histórico da proposta; falha de auditoria desfaz a decisão.
+
+Outros perfis recebem 403; sem sessão, 401; solicitação inexistente, 404. O autor recebe 403 `SELF_REVIEW_FORBIDDEN` mesmo que tenha passado a analista. A decisão não modifica operações legadas nem executa processamento ou pagamento.

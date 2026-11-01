@@ -24,12 +24,13 @@ export type Permission =
   | "proposals:read"
   | "proposals:accept"
   | "requests:read"
+  | "requests:decide"
   | "operations:change-status"
   | "audit:read";
 
 const permissionsByRole: Record<Role, readonly Permission[]> = {
   CONSULTANT: ["customers:read", "customers:create", "quotes:simulate", "simulations:read", "operations:read", "proposals:create", "proposals:read", "proposals:accept", "requests:read", "audit:read"],
-  OPERATIONS_ANALYST: ["customers:read", "operations:read", "operations:change-status", "proposals:read", "requests:read", "audit:read"],
+  OPERATIONS_ANALYST: ["customers:read", "operations:read", "operations:change-status", "requests:decide", "proposals:read", "requests:read", "audit:read"],
   MANAGER: ["customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
   ADMIN: ["employees:read", "employees:create", "customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
 };

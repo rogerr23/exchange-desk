@@ -328,6 +328,34 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   const requestPage = await request(`/solicitacoes/${acceptedProposal.request.id}`, operator);
   expect(await requestPage.text()).toContain("Aguardando análise");
   expect(await db.exchangeOperation.count()).toBe(0);
+  const decisionPath = `/api/solicitacoes/${acceptedProposal.request.id}/decisao`;
+  const manager = await signIn("manager@example.test");
+  for (const jar of [operator, admin, manager]) {
+    expect((await request(decisionPath, jar, sendJson({ decision: "APPROVED" }))).status).toBe(403);
+    const html = await (await request(`/solicitacoes/${acceptedProposal.request.id}`, jar)).text();
+    expect(html).not.toContain("Confirmar aprovação");
+  }
+  const reviewHtml = await (await request(`/solicitacoes/${acceptedProposal.request.id}`, analyst)).text();
+  expect(reviewHtml).toContain("Confirmar aprovação");
+  await db.user.update({ where: { id: consultant.id }, data: { role: "OPERATIONS_ANALYST" } });
+  const selfDecision = await request(decisionPath, operator, sendJson({ decision: "APPROVED" }));
+  expect(selfDecision.status).toBe(403);
+  expect((await selfDecision.json()).error.code).toBe("SELF_REVIEW_FORBIDDEN");
+  await db.user.update({ where: { id: consultant.id }, data: { role: "CONSULTANT" } });
+  const approval = await request(decisionPath, analyst, sendJson({ decision: "APPROVED" }));
+  expect(approval.status).toBe(200);
+  const approved = (await approval.json()).data;
+  expect(approved.status).toBe("APPROVED");
+  expect((await (await request(decisionPath, analyst, sendJson({ decision: "APPROVED" }))).json()).data.operationId).toBe(approved.operationId);
+  const approvedHtml = await (await request(`/solicitacoes/${acceptedProposal.request.id}`, operator)).text();
+  expect(approvedHtml).toContain("Aprovada");
+  expect(approvedHtml).toContain("Ver operação gerada");
+  const operationHtml = await (await request(`/operacoes/${approved.operationId}`, analyst)).text();
+  expect(operationHtml).toContain("Ver decisão e proposta de origem");
+  const blockedTransition = await request(`/api/operacoes/${approved.operationId}/status`, analyst, { ...sendJson({ expectedStatus: "PENDING", status: "UNDER_REVIEW" }), method: "PATCH" });
+  expect(blockedTransition.status).toBe(409);
+  expect((await blockedTransition.json()).error.code).toBe("PROCESSING_NOT_AVAILABLE");
+  expect(await db.exchangeOperation.count()).toBe(1);
   await db.user.update({ where: { id: consultant.id }, data: { role: "MANAGER" } });
   expect((await request("/api/simulacoes", operator)).status).toBe(403);
   expect((await request("/api/clientes", operator, sendJson(customer))).status).toBe(403);

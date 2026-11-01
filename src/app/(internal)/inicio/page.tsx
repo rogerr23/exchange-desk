@@ -26,14 +26,14 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
   };
   const guidance = {
     CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e salve uma proposta. O prazo de aceite é o restante dos 15 minutos da simulação.", "Registre o aceite simulado para gerar uma solicitação e acompanhe a análise."],
-    OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Acompanhe a análise nos detalhes da operação. Toda alteração fica na auditoria."],
+    OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Aprove ou rejeite nos detalhes da solicitação. A rejeição exige um motivo e a aprovação cria a operação."],
     MANAGER: ["Acompanhe os indicadores de toda a equipe.", "Consulte os detalhes e o histórico das operações para supervisão."],
     ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
   };
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   const metrics = [
     ...(can(actor.role, "simulations:read") ? [{ label: "Simulações salvas", value: simulationCount, note: "Desde a criação do histórico", href: "/simulacoes/historico" }] : []),
-    { label: "Pendentes", value: counts.PENDING, note: "Registradas, aguardando análise", href: "/operacoes" },
+    { label: "Pendentes", value: counts.PENDING, note: "Aguardando continuidade operacional", href: "/operacoes" },
     { label: "Em análise", value: counts.UNDER_REVIEW, note: "Em conferência de dados", href: "/operacoes" },
     { label: "Concluídas", value: counts.COMPLETED, note: "Fluxo encerrado", href: "/operacoes" },
     { label: "Canceladas", value: counts.CANCELED, note: "Encerradas sem conclusão", href: "/operacoes" },

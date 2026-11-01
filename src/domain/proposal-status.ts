@@ -8,3 +8,15 @@ export const proposalStatusLabels = {
   ACCEPTED: "Aceita",
   EXPIRED: "Expirada",
 };
+
+export const requestStatusLabels = {
+  PENDING_REVIEW: "Aguardando análise",
+  APPROVED: "Aprovada",
+  REJECTED: "Rejeitada",
+};
+export const proposalAuditLabels = {
+  CREATED: "Proposta criada",
+  ACCEPTED: "Aceite simulado registrado e solicitação gerada",
+  APPROVED: "Solicitação aprovada e operação criada",
+  REJECTED: "Solicitação rejeitada",
+};

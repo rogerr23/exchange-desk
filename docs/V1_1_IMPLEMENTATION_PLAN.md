@@ -1,6 +1,6 @@
 # Plano de implementação — ExchangeDesk V1.1
 
-As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista e processamento permanecem pendentes.
+As responsabilidades e os escopos aprovados estão em [V1_1_DECISIONS.md](./V1_1_DECISIONS.md). Este plano separa a base verificada, a preparação técnica e as decisões ainda necessárias. Os quatro perfis já estão implementados sobre os estados operacionais da V1; propostas, aceite e solicitações aguardando análise estão implementados; decisão do analista está implementada; processamento permanece pendente.
 
 ## 1. Referência da V1
 
@@ -102,4 +102,6 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 - Validação: 40 testes unitários e 20 de integração passaram, incluindo migração com preservação de vínculos, escopos, HTTP dos quatro perfis e sessão existente após mudança de função; lint, tipos, schema e build passaram.
 - Conferência visual: login e painel dos quatro perfis em desktop; detalhes com auditoria e ações exclusivas do analista; layouts de 390 e 320 pixels sem rolagem horizontal da página. Foram usadas apenas contas temporárias no banco descartável, removidas ao concluir; o servidor temporário foi encerrado.
 - Propostas, aceite e solicitações: primeira entrega implementada conforme [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). Validade original da simulação preservada; administrador pode consultar para suporte; operação somente após aprovação.
-- Próximo passo: definir e implementar aprovação/rejeição pelo analista e, depois, processamento simulado e recuperação.
+- Decisão do analista: aprovação/rejeição implementadas, com motivo obrigatório na rejeição, bloqueio por identidade, idempotência e criação atômica de uma operação na aprovação. Novas operações aguardam processamento e não usam transições legadas.
+- Validação da decisão: 40 testes unitários e 28 de integração passaram, além de lint, tipos, schema e build. Conferência visual de aprovação/rejeição concluída, incluindo telas de 320 e 390 pixels. Migração aplicada nos bancos locais da aplicação e de testes.
+- Próximo passo: definir e implementar processamento simulado e recuperação.

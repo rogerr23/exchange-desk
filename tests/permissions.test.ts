@@ -16,6 +16,7 @@ describe("permissões da equipe", () => {
       expect(can(role, "customers:create")).toBe(role === "CONSULTANT");
       expect(can(role, "quotes:simulate")).toBe(role === "CONSULTANT");
       expect(can(role, "simulations:read")).toBe(role === "CONSULTANT");
+      expect(can(role, "requests:decide")).toBe(role === "OPERATIONS_ANALYST");
       expect(can(role, "operations:change-status")).toBe(role === "OPERATIONS_ANALYST");
     }
   });
@@ -24,7 +25,7 @@ describe("permissões da equipe", () => {
     const actions: Permission[] = [
       "employees:create", "employees:read", "customers:read", "customers:create",
       "quotes:simulate", "simulations:read", "operations:read", "proposals:create",
-      "operations:change-status", "proposals:read", "proposals:accept", "requests:read", "audit:read",
+      "operations:change-status", "proposals:read", "proposals:accept", "requests:read", "requests:decide", "audit:read",
     ];
     for (const action of actions) {
       expect(can(null, action)).toBe(false);

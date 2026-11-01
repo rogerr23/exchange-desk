@@ -1,6 +1,6 @@
 import { cpf, dateTime, money, referenceDate } from "@/lib/format";
 import type { getProposal } from "@/server/services/proposals";
-import { proposalStatusLabels } from "@/domain/proposal-status";
+import { proposalStatusLabels, proposalAuditLabels } from "@/domain/proposal-status";
 
 export function ProposalSummary({ proposal }: { proposal: Awaited<ReturnType<typeof getProposal>> }) {
   return <div className="space-y-6">
@@ -29,7 +29,7 @@ export function ProposalSummary({ proposal }: { proposal: Awaited<ReturnType<typ
       <h2 className="text-sm font-semibold">Histórico da proposta</h2>
       <ol className="mt-5 space-y-5">
         {proposal.auditEvents.map((event) => <li key={event.id}>
-          <p className="text-sm font-semibold">{event.action === "CREATED" ? "Proposta criada" : "Aceite simulado registrado e solicitação gerada"}</p>
+          <p className="text-sm font-semibold">{proposalAuditLabels[event.action]}</p>
           <p className="mt-1 text-sm text-muted">{event.actor.name}</p>
           <p className="mt-1 text-xs text-muted">{dateTime(event.occurredAt)} · Brasília</p>
         </li>)}

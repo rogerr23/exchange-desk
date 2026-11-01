@@ -40,10 +40,14 @@ enum AuditAction {
 enum ProposalAuditAction {
   CREATED
   ACCEPTED
+  APPROVED
+  REJECTED
 }
 
 enum RequestStatus {
   PENDING_REVIEW
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -57,7 +61,8 @@ model User {
   simulations  Simulation[]
   auditEvents  OperationAuditEvent[]
   proposals    Proposal[]
-  requests     ExchangeRequest[]
+  requests     ExchangeRequest[] @relation("RequestAuthor")
+  requestDecisions ExchangeRequest[] @relation("RequestReviewer")
   proposalEvents ProposalAuditEvent[]
 }
 
@@ -92,6 +97,7 @@ model ExchangeOperation {
   updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
   customer           Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
   createdBy          User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  request            ExchangeRequest?
   auditEvents        OperationAuditEvent[]
 
   @@index([createdAt])
@@ -169,8 +175,14 @@ model ExchangeRequest {
   createdById String
   status      RequestStatus @default(PENDING_REVIEW)
   createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  operationId String? @unique
+  decidedById String?
+  decidedAt   DateTime? @db.Timestamptz(3)
+  rejectionReason String? @db.VarChar(1000)
+  operation ExchangeOperation? @relation(fields: [operationId], references: [id], onDelete: Restrict)
+  decidedBy User? @relation("RequestReviewer", fields: [decidedById], references: [id], onDelete: Restrict)
   proposal    Proposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
-  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy   User @relation("RequestAuthor", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([createdById, createdAt])
   @@index([status, createdAt])

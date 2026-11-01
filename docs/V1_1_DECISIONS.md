@@ -1,6 +1,6 @@
 # Decisões aprovadas — ExchangeDesk V1.1
 
-Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite simulado e solicitações aguardando análise estão implementados; aprovação/rejeição e processamento simulado ainda não estão disponíveis.
+Este documento registra decisões confirmadas pelo usuário. Aprovação de uma regra não significa que ela já esteja implementada. Os quatro perfis, seus acessos, navegação e painéis já estão implementados sobre o fluxo operacional da V1. Propostas, aceite simulado e solicitações aguardando análise estão implementados; aprovação/rejeição estão implementadas; processamento simulado ainda não está disponível.
 
 ## Acesso — um perfil por funcionário
 
@@ -47,14 +47,14 @@ O acesso administrativo a propostas e solicitações para suporte foi aprovado, 
 
 A referência local da V1 e os dados existentes foram conferidos. As três migrações da V1 foram conferidas; a migração dos perfis também foi aplicada nos bancos locais da aplicação e de testes. Neste ambiente existe apenas um administrador e nenhum registro operacional.
 
-O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A próxima etapa é definir a decisão do analista e o processamento simulado.
+O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). A próxima etapa é definir o processamento simulado e sua recuperação.
 
 ## Ciclo de propostas e solicitações
 
 Decisões aprovadas em 31/10/2026:
 
 - Simulação → proposta → aceite simulado → solicitação → aprovação ou rejeição pelo analista.
-- A operação será criada somente após aprovação, sem criação no aceite. A aprovação ainda será implementada.
+- A operação será criada somente após aprovação, sem criação no aceite. A aprovação está implementada.
 - A proposta usa o prazo restante dos 15 minutos contados desde a simulação. Salvar não renova a validade; o aceite válido preserva os valores para análise posterior.
 - O administrador pode consultar propostas e solicitações para suporte, sem alterá-las.
 
