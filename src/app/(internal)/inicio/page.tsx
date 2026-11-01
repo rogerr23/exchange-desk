@@ -6,17 +6,19 @@ import { SimulationHistory } from "@/components/simulations/simulation-history";
 import { dateTime, money } from "@/lib/format";
 import { can, ROLE_LABELS } from "@/domain/permissions";
 import { requirePagePermission } from "@/server/auth/page-access";
-import { getOperationSummary, listOperations } from "@/server/services/operations";
+import { getDashboardOverview } from "@/server/services/dashboard";
+import { listOperations } from "@/server/services/operations";
 import { getSimulationCount, listSimulations } from "@/server/services/simulations";
 
 export const metadata: Metadata = { title: "Painel | ExchangeDesk" };
 export default async function StartPage({ searchParams }: { searchParams: Promise<{ acesso?: string }> }) {
   const actor = await requirePagePermission("operations:read");
-  const [counts, operations, simulations, simulationCount, { acesso }] = await Promise.all([
-    getOperationSummary(), listOperations(5),
+  const [overview, operations, simulations, simulationCount, { acesso }] = await Promise.all([
+    getDashboardOverview(), listOperations(5),
     can(actor.role, "simulations:read") ? listSimulations(5) : Promise.resolve([]),
     can(actor.role, "simulations:read") ? getSimulationCount() : Promise.resolve(0), searchParams,
   ]);
+  const counts = overview.operations;
   const isConsultant = actor.role === "CONSULTANT";
   const descriptions = {
     CONSULTANT: "Suas simulações, suas operações e o próximo passo de cada atendimento.",
@@ -28,7 +30,7 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e salve uma proposta. O prazo de aceite é o restante dos 15 minutos da simulação.", "Registre o aceite simulado para gerar uma solicitação e acompanhe a análise."],
     OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Aprove ou rejeite nos detalhes da solicitação. A rejeição exige um motivo e a aprovação cria a operação.", "Na operação aprovada, inicie o processamento simulado e acompanhe as tentativas. Retome uma tentativa interrompida ou inicie outra após falha."],
     MANAGER: ["Acompanhe os indicadores de toda a equipe.", "Consulte os detalhes e o histórico das operações para supervisão."],
-    ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
+    ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Gerencie perfis, desativações e reativações nos detalhes do funcionário. O histórico preserva quem fez cada alteração.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
   };
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   const metrics = [
@@ -40,6 +42,20 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     { label: "Concluídas", value: counts.COMPLETED, note: "Fluxo encerrado", href: "/operacoes" },
     { label: "Canceladas", value: counts.CANCELED, note: "Encerradas sem conclusão", href: "/operacoes" },
   ];
+  const activityMetrics = [
+    ...(overview.proposals ? [
+      { label: "Propostas aguardando aceite", value: overview.proposals.awaitingAcceptance, href: "/propostas" },
+      { label: "Propostas expiradas", value: overview.proposals.expired, href: "/propostas" },
+      { label: "Propostas aceitas", value: overview.proposals.accepted, href: "/propostas" },
+    ] : []),
+    { label: "Solicitações aguardando análise", value: overview.requests.PENDING_REVIEW, href: "/solicitacoes" },
+    { label: "Solicitações aprovadas", value: overview.requests.APPROVED, href: "/solicitacoes" },
+    { label: "Solicitações rejeitadas", value: overview.requests.REJECTED, href: "/solicitacoes" },
+    ...(overview.employees ? [
+      { label: "Funcionários ativos", value: overview.employees.active, href: "/funcionarios" },
+      { label: "Funcionários desativados", value: overview.employees.inactive, href: "/funcionarios" },
+    ] : []),
+  ];
   return <>
     <div className="page-heading">
       <div>
@@ -50,6 +66,13 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
       {can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary w-fit">Nova simulação<Icon name="arrow" width="17" height="17" /></Link>}
     </div>
     {acesso === "negado" && <div role="alert" className="notice notice-error mt-6"><Icon name="lock" />Seu perfil não tem permissão para acessar esta área.</div>}
+    <section className="mt-8" aria-label="Propostas, solicitações e acessos">
+      <h2 className="text-sm font-semibold">{isConsultant ? "Meus atendimentos" : actor.role === "ADMIN" ? "Atendimento e suporte" : "Atendimentos da equipe"}</h2>
+      <p className="mt-2 text-xs leading-5 text-muted">{isConsultant ? "Seus registros, desde a proposta até a decisão do analista." : "Contadores da equipe, conforme as consultas permitidas ao seu perfil."} Os números representam registros, não valores financeiros.</p>
+      <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-3">{activityMetrics.map(metric => <div key={metric.label} className="surface-card min-w-0 p-5">
+        <dt className="break-words text-sm text-muted"><Link href={metric.href} className="hover:underline">{metric.label}</Link></dt><dd className="mt-3 text-3xl font-semibold tabular-nums">{metric.value}</dd>
+      </div>)}</dl>
+    </section>
     <section className="mt-8" aria-label="Resumo de atividades">
       <p className="mb-4 text-xs text-muted">{isConsultant ? "Somente registros criados por você" : "Toda a equipe"} · {total} {total === 1 ? "operação" : "operações"} no total</p>
       <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -70,6 +93,16 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     </div>
     <div className="mt-8 grid items-start gap-6 lg:grid-cols-[1fr_320px]">
       <div className="min-w-0 space-y-6">
+        <section className="surface-card overflow-hidden" aria-label="Solicitações aguardando análise">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-6"><h2 className="text-sm font-semibold">{isConsultant ? "Minhas solicitações aguardando análise" : "Fila de análise da equipe"}</h2><Link href="/solicitacoes" className="text-xs font-semibold text-brand-ink underline">Ver solicitações</Link></div>
+          <p className="px-6 pt-4 text-xs text-muted">Até cinco solicitações pendentes, das mais antigas para as mais recentes.</p>
+          {!overview.pendingRequests.length ? <p className="p-6 text-sm text-muted">Nenhuma solicitação aguardando análise neste escopo.</p> : <div className="divide-y divide-line">{overview.pendingRequests.map(request => <article key={request.id} className="space-y-2 p-6">
+            <Link href={`/solicitacoes/${request.id}`} className="break-words text-sm font-semibold text-brand-ink underline">{request.customerName}</Link>
+            <p className="break-words text-sm tabular-nums">{money(request.sourceAmount, request.sourceCurrency)} → {money(request.targetAmount, request.targetCurrency)}</p>
+            <p className="break-words text-xs text-muted">{dateTime(request.createdAt)} · Brasília{!isConsultant && ` · ${request.consultantName}`}</p>
+            {request.selfReviewBlocked && <p className="text-xs font-semibold text-warning">Autoria própria · decisão bloqueada</p>}
+          </article>)}</div>}
+        </section>
         <section className="surface-card overflow-hidden">
           <div className="border-b border-line p-6"><h2 className="text-sm font-semibold">{isConsultant ? "Minhas operações recentes" : "Operações recentes da equipe"}</h2></div>
           {operations.length === 0 ? <div className="p-6 text-sm leading-6 text-muted">Nenhuma operação registrada neste escopo.</div> :

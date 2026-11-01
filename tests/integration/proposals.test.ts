@@ -18,6 +18,7 @@ import { startOperationProcessing, finishOperationProcessing, PROCESSING_DELAY_M
 import { POST as START_PROCESSING } from "@/app/api/operacoes/[id]/processamento/route";
 import { POST as FINISH_PROCESSING } from "@/app/api/operacoes/[id]/processamento/resultado/route";
 import { changeOperationStatus, getOperation, getOperationSummary } from "@/server/services/operations";
+import { getDashboardOverview } from "@/server/services/dashboard";
 import { ROLES, type Role } from "@/domain/permissions";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -416,4 +417,60 @@ it("desfaz início e resultado em falha de auditoria e permite retomar depois se
   const body = await response.json();
   expect(body.data.status).toBe("COMPLETED");
   expect(JSON.stringify(body)).not.toMatch(/passwordHash|simulationToken|confirmationKey/);
+});
+
+it("resume atendimento e operações no painel sem misturar autores nem expor propostas sem aceite ao analista", async () => {
+  const { proposal: draft } = await createProposal({ customerId, simulationToken: token() });
+  await createProposal({ customerId, simulationToken: token({ issuedAt: Date.now() - SIMULATION_TTL_MS + 60_000 }) });
+  const pendingId = await pendingRequest();
+  const rejectedId = await pendingRequest();
+  const approvedId = await pendingRequest();
+  login(actors.OPERATIONS_ANALYST);
+  await decideExchangeRequest(rejectedId, { decision: "REJECTED", rejectionReason: "Conferência fictícia" });
+  await decideExchangeRequest(approvedId, { decision: "APPROVED" });
+  const other = await db.user.create({ data: { name: "Outro consultor", email: "dashboard-other@example.test", role: "CONSULTANT", passwordHash: "unused" } });
+  login(other.id);
+  const { proposal } = await createProposal({ customerId, simulationToken: token({ actorId: other.id }) });
+  const otherRequest = (await acceptProposal(proposal.id, acceptance)).proposal.request!;
+  await db.user.update({ where: { id: other.id }, data: { isActive: false } });
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + 60_000);
+  login(actors.CONSULTANT);
+  const own = await getDashboardOverview();
+  expect(own.proposals).toEqual({ awaitingAcceptance: 1, expired: 1, accepted: 3 });
+  expect(own.requests).toEqual({ PENDING_REVIEW: 1, APPROVED: 1, REJECTED: 1 });
+  expect(own.operations.PENDING).toBe(1);
+  expect(own.pendingRequests.map(r => r.id)).toEqual([pendingId]);
+  expect(own.employees).toBeNull();
+  for (const role of ["OPERATIONS_ANALYST", "MANAGER", "ADMIN"] as const) {
+    login(actors[role]);
+    const team = await getDashboardOverview();
+    expect(team.requests).toEqual({ PENDING_REVIEW: 2, APPROVED: 1, REJECTED: 1 });
+    expect(team.pendingRequests.map(r => r.id)).toEqual([pendingId, otherRequest.id]);
+    expect(team.proposals).toEqual(role === "OPERATIONS_ANALYST" ? null : { awaitingAcceptance: 1, expired: 1, accepted: 4 });
+    expect(team.employees).toEqual(role === "ADMIN" ? { active: 4, inactive: 1 } : null);
+    expect(JSON.stringify(team)).not.toMatch(/confirmationKey|simulationToken|passwordHash/);
+    expect(JSON.stringify(team)).not.toContain(draft.id);
+  }
+  await db.user.update({ where: { id: actors.CONSULTANT }, data: { role: "OPERATIONS_ANALYST" } });
+  login(actors.CONSULTANT);
+  const changed = await getDashboardOverview();
+  expect(changed.proposals).toBeNull();
+  expect(changed.pendingRequests.find(r => r.id === pendingId)?.selfReviewBlocked).toBe(true);
+  expect(changed.pendingRequests.find(r => r.id === otherRequest.id)?.selfReviewBlocked).toBe(false);
+  vi.mocked(auth).mockResolvedValue(null as never);
+  await expect(getDashboardOverview()).rejects.toMatchObject({ status: 401 });
+});
+
+it("limita a fila do painel às cinco solicitações pendentes mais antigas, sem alterar o total", async () => {
+  const ids: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const id = await pendingRequest();
+    await db.exchangeRequest.update({ where: { id }, data: { createdAt: new Date(2026, 9, 30, 12, i) } });
+    ids.push(id);
+  }
+  login(actors.OPERATIONS_ANALYST);
+  const overview = await getDashboardOverview();
+  expect(overview.requests.PENDING_REVIEW).toBe(7);
+  expect(overview.pendingRequests.map(r => r.id)).toEqual(ids.slice(0, 5));
 });

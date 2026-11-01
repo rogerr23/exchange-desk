@@ -47,7 +47,7 @@ O acesso administrativo a propostas e solicitações para suporte foi aprovado, 
 
 A referência local da V1 e os dados existentes foram conferidos. As três migrações da V1 foram conferidas; a migração dos perfis também foi aplicada nos bancos locais da aplicação e de testes. Neste ambiente existe apenas um administrador e nenhum registro operacional.
 
-O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). O processamento simulado e a recuperação estão implementados. A gestão de acessos também está implementada. A próxima etapa é revisar os painéis e executar a validação final da V1.1.
+O [plano da V1.1](./V1_1_IMPLEMENTATION_PLAN.md) registra o inventário, a matriz funcional e os pontos de alteração em autenticação, autorização, navegação e painéis. A evolução dos perfis está implementada e validada. O ciclo de propostas e aceite foi aprovado e sua primeira entrega está implementada. A decisão do analista está implementada conforme o detalhamento técnico em [V1_1_PROPOSAL_FLOW.md](./V1_1_PROPOSAL_FLOW.md). O processamento simulado e a recuperação estão implementados. A gestão de acessos também está implementada. Os painéis foram revisados e a validação final local foi concluída. A entrega completa está documentada em [V1_1_RELATORIO_IMPLEMENTACAO.md](./V1_1_RELATORIO_IMPLEMENTACAO.md).
 
 ## Ciclo de propostas e solicitações
 

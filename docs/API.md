@@ -236,3 +236,11 @@ Reenvio da mesma mudança imediatamente anterior retorna o registro existente; e
 Alteração do próprio acesso retorna 403 `SELF_ACCESS_CHANGE_FORBIDDEN`. O sistema preserva um administrador ativo e revalida o executor dentro da transação após serializar as alterações. Se o executor perdeu o perfil, retorna 403; se foi desativado ou sua sessão foi revogada, 401. A proteção adicional de último administrador usa 409 `LAST_ADMIN_REQUIRED`. Funcionário inexistente retorna 404. Os demais perfis recebem 403 também na consulta de detalhes; sem sessão válida, 401.
 
 Desativação bloqueia login e sessões abertas. Reativação permite novo login com a senha existente e mantém os cookies anteriores revogados. Troca de perfil atualiza as permissões e o perfil de sessão nas próximas requisições. Páginas privadas redirecionam sessões inválidas para `/login`; `/api/auth/session` retorna `null` para sessão revogada. A alteração preserva ID, autoria, senha e histórico operacional. Fluxo e limites em [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md).
+
+## Painel de acompanhamento
+
+`/inicio` usa serviços de servidor autorizados; não foi criado um endpoint HTTP adicional para o resumo. O consultor recebe indicadores e fila próprios. Analista, gerente e administrador recebem o escopo da equipe, respeitando a diferença de leitura de propostas e funcionários.
+
+Os indicadores incluem solicitações `PENDING_REVIEW`, `APPROVED` e `REJECTED`, além dos seis estados operacionais. Consultor, gerente e administrador também recebem contadores de propostas aguardando aceite, expiradas e aceitas. O analista não consulta contagens de propostas sem aceite. Apenas o administrador recebe totais de funcionários ativos/desativados.
+
+A fila é limitada às cinco solicitações pendentes mais antigas, ordenadas por criação e ID; o limite não reduz os totais. A autoria própria é sinalizada para o analista, mantendo o bloqueio da decisão no serviço. Os contadores são lidos em transação `RepeatableRead`; as listas recentes e simulações são consultas separadas. Não há soma entre moedas, gráfico ou mutação causada pelo painel. O relatório completo está em [V1_1_RELATORIO_IMPLEMENTACAO.md](./V1_1_RELATORIO_IMPLEMENTACAO.md).

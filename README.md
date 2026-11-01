@@ -1,4 +1,4 @@
-# ExchangeDesk — evolução V1.1
+# ExchangeDesk — V1.1
 
 Sistema de gestão de operações de câmbio para equipes, com cadastro de clientes, simulações de conversão e acompanhamento de operações com histórico de status.
 
@@ -16,6 +16,8 @@ A aplicação usa Next.js Full Stack com TypeScript. A V1 gerencia o fluxo inter
 - Operações aprovadas: **Pendente → Processando → Concluída ou Falha**, com novas tentativas após falha.
 - Operações legadas: **Pendente → Em análise → Concluída ou Cancelada**.
 - Auditoria com data, funcionário responsável, operação e alterações de status.
+
+Relatório consolidado da versão: [V1_1_RELATORIO_IMPLEMENTACAO.md](./docs/V1_1_RELATORIO_IMPLEMENTACAO.md), com funcionalidades, implementação, motivos, funcionamento e evidências de validação.
 
 ## Tecnologias
 
@@ -140,13 +142,17 @@ Login por e-mail e senha com Auth.js Credentials, hash Argon2id e sessão JWT co
 
 O consultor possui um painel pessoal em `/inicio`, com simulações, operações e auditoria próprias, e cadastra clientes. Analista e gerente consultam operações, auditoria e clientes da equipe; apenas o analista conduz as transições do fluxo existente, sem analisar operações que criou, mesmo após mudança de função. O administrador cadastra e lista funcionários e consulta operações, auditoria e clientes vinculados para suporte. Somente o consultor cria simulações e propostas e registra aceite; o administrador não herda essas ações. O perfil atual é conferido no banco em cada autorização. O cadastro de clientes não realiza consulta de CPF ou envio de e-mails. As cotações usarão Frankfurter / ECB, com referência diária e sem chave de API. As decisões e os limites estão detalhados na arquitetura e nos requisitos.
 
-## Próxima entrega e decisões pendentes
+## Situação da versão
 
-A etapa 4 está implementada no servidor: `POST /api/simulacoes`, timeout de 5 segundos, cache em memória por 15 minutos e simulação assinada válida por 15 minutos. A política está em [ARCHITECTURE.md](./docs/ARCHITECTURE.md). A etapa 5 também está implementada no servidor: confirmação sem duplicação, consultas, transições de status e auditoria atômica. As telas operacionais estão implementadas: clientes, simulação com revisão e validade, confirmação, listagem e detalhes com transições e auditoria. A visão geral usa somente contadores reais por status, conforme a opção aprovada.
+O escopo local da V1.1 está implementado e validado: quatro perfis, propostas, aceite simulado, solicitações, aprovação/rejeição, processamento com recuperação, gestão de acessos e painéis do fluxo completo. Passaram lint, tipos, schema, build, 41 testes unitários e 45 de integração.
 
-O foco atual é o desenvolvimento local e a evolução para a V1.1, conforme [as decisões aprovadas](./docs/V1_1_DECISIONS.md). Publicação e escolha de hospedagem estão adiadas, sem bloquear o desenvolvimento. Gráficos e a adoção de Recharts também ficam adiados.
+O foco permanece no uso local. Publicação, hospedagem e as funcionalidades listadas fora do escopo não fazem parte deste fechamento. Gráficos e Recharts permanecem adiados; os painéis apresentam contadores reais.
 
 ## Documentação
+
+- [V1_1_RELATORIO_IMPLEMENTACAO.md](./docs/V1_1_RELATORIO_IMPLEMENTACAO.md): relato completo da versão, decisões, funcionamento e validação.
+- [V1_1_PROCESSING_FLOW.md](./docs/V1_1_PROCESSING_FLOW.md): processamento simulado e recuperação.
+- [V1_1_ACCESS_MANAGEMENT.md](./docs/V1_1_ACCESS_MANAGEMENT.md): troca de perfil, desativação, reativação e sessões.
 
 - [REQUIREMENTS.md](./docs/REQUIREMENTS.md): requisitos e critérios de aceite.
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md): organização técnica, dados e decisões pendentes.
@@ -160,7 +166,7 @@ O foco atual é o desenvolvimento local e a evolução para a V1.1, conforme [as
 
 Aplique a migração `20261031183000_operator_workspace` com `npm run db:deploy` antes de iniciar esta versão. Cada simulação bem-sucedida passa a ser salva com seu autor, valores, taxa, fonte, referência e prazo original. Não há recuperação retroativa de simulações anteriores. `/simulacoes/historico` e `GET /api/simulacoes` mostram as 50 consultas mais recentes do escopo do usuário, com acesso à operação quando confirmada. A opção **Simular novamente** preenche as moedas e o valor, mas exige uma nova consulta e revisão. O histórico não armazena tokens nem renova a validade de 15 minutos.
 
-O painel do consultor mostra indicadores reais, cinco operações e cinco simulações próprias recentes; os demais perfis consultam operações da equipe, além de explicações sobre cálculo, referência diária e etapas de acompanhamento. A simulação aplica apenas a taxa de referência, sem calcular tarifas, spread ou impostos; registrar e concluir operações não executa pagamentos.
+O painel do consultor mostra indicadores de propostas e solicitações próprias, cinco operações e cinco simulações recentes; os demais perfis consultam indicadores da equipe conforme suas permissões. A fila mostra até cinco solicitações pendentes mais antigas; somente o administrador recebe totais de funcionários ativos/desativados. A simulação aplica apenas a taxa de referência, sem calcular tarifas, spread ou impostos; registrar e concluir operações não executa pagamentos.
 
 ### Perfis da V1.1
 

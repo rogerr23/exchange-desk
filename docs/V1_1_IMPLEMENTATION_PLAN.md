@@ -44,7 +44,7 @@ Essa referência descreve a V1 e não deve ser usada como matriz dos novos perfi
 | Consultar operações | Próprias | Equipe | Equipe | Equipe, para suporte |
 | Aprovar ou rejeitar solicitações | Não | Sim, exceto as criadas pelo próprio funcionário | Não | Não |
 | Iniciar processamento simulado | Não | Sim | Não | Não |
-| Consultar indicadores da equipe | Não | Painel operacional a detalhar | Sim | Painel de suporte a detalhar |
+| Consultar indicadores da equipe | Não, somente próprios | Solicitações e operações | Propostas, solicitações e operações | Atendimento, operações e acessos para suporte |
 | Cadastrar funcionários e gerenciar acessos | Não | Não | Não | Sim |
 
 A leitura de operações pelo administrador foi aprovada em 31/10/2026. Ela não concede aprovação, rejeição, processamento, criação de propostas, aceite, cadastro de clientes ou simulação. Também foram aprovados e implementados os escopos de clientes e auditoria da matriz acima.
@@ -55,24 +55,24 @@ As ações de proposta, aceite, aprovação e processamento estão implementadas
 
 Identificadores técnicos implementados: `CONSULTANT`, `OPERATIONS_ANALYST`, `MANAGER` e `ADMIN`. Cada funcionário terá um único valor em `User.role`.
 
-### Autenticação e autorização
+### Autenticação e autorização implementadas
 
-- Separar funcionário autenticado de permissão de negócio. Atualmente o layout interno e a página de login usam `customers:read` como condição de entrada; isso impediria o acesso de um administrador sem permissão de clientes.
-- Atualizar o enum Prisma, o tipo de domínio, a validação de cadastro, o formulário de funcionários e o reconhecimento de perfis na sessão Auth.js em uma entrega coerente.
-- Continuar consultando o perfil atual no banco em cada autorização; a sessão JWT não será a referência para conceder permissões após mudança de função.
-- Separar leitura de simulações de sua criação. Hoje o histórico e seus contadores exigem `quotes:simulate`; a leitura deverá ter sua própria permissão e escopo.
-- Substituir os filtros `role === ADMIN` por regras explícitas de ação e alcance dos registros. Aplicar o mesmo alcance a listagem, detalhes por ID, totais e auditoria, tanto nas páginas quanto na API.
-- Dividir a permissão genérica de mudança de status nas ações do novo fluxo quando os estados forem definidos. Conferir `createdById` ao aprovar, inclusive se o autor tiver mudado de perfil.
+- Entrada autenticada separada de permissões de negócio; os quatro perfis acessam seu painel.
+- Perfil, situação e versão de sessão consultados no banco em cada autorização.
+- Permissões e escopos explícitos em listagens, detalhes, contadores e mutações.
+- Histórico de simulações próprio e distinto da criação de simulações.
+- Aprovação, rejeição e processamento separados das transições legadas, com bloqueio por identidade do autor.
+- Gestão de acessos com substituição de perfil, desativação, reativação, histórico e proteção de administrador ativo.
 
-### Navegação e painéis
+### Navegação e painéis implementados
 
-- Trocar a navegação baseada em `isAdmin` por links correspondentes às permissões do perfil.
-- Consultor: painel pessoal com seus registros e atalhos de atendimento.
-- Analista: entrada para conferência das solicitações da equipe e processamento, conforme os estados a definir.
-- Gerente: consulta de registros e indicadores da equipe.
-- Administrador: funcionários, gestão de acessos e consulta de operações para suporte.
-- Evitar que o painel carregue serviços sem permissão para o perfil. Hoje `/inicio` carrega operações e simulações para todos.
-- Ajustar os redirecionamentos de acesso negado e a mensagem atual, que menciona apenas a exclusividade do gerenciamento de funcionários.
+- Links e ações conforme as permissões, com redirecionamento de sessão inválida ou acesso negado.
+- Consultor: propostas, solicitações, operações e simulações próprias, com atalhos comerciais.
+- Analista: indicadores de solicitações/operações e fila da equipe, sem consulta a propostas sem aceite.
+- Gerente: indicadores de propostas, solicitações e operações da equipe para supervisão.
+- Administrador: suporte de atendimento/operações e totais de contas ativas/desativadas com gestão de funcionários.
+- Fila limitada às cinco solicitações pendentes mais antigas, preservando contadores totais e indicando autoria própria bloqueada ao analista.
+- Contadores agrupados no banco em uma fotografia consistente; dados recentes consultados separadamente. Nenhum somatório financeiro ou gráfico foi adicionado.
 
 ### Migração dos dados
 
@@ -108,4 +108,6 @@ Cobrir os quatro perfis com testes essenciais de autorização, escopo por regis
 - Validação do processamento: 40 testes unitários e 34 de integração passaram, além de lint, tipos, schema e build. Fluxo visual de falha e nova tentativa conferido em desktop e celular. Migração aplicada nos bancos locais da aplicação e de testes.
 - Gestão de acessos: implementada conforme [V1_1_ACCESS_MANAGEMENT.md](./V1_1_ACCESS_MANAGEMENT.md), preservando autoria, senha e vínculos existentes.
 - Validação dos acessos: 41 testes unitários e 43 de integração passaram, além de lint, tipos, schema e build. Interface conferida em desktop e telas de 320 e 390 pixels. Migração aplicada nos bancos locais da aplicação e de testes.
-- Próximo passo: revisão dos painéis e validação final da V1.1.
+- Painéis finais: indicadores de propostas, solicitações, operações e acessos implementados conforme o perfil; fila de análise com limite e ordenação definidos.
+- Fechamento: lint, tipos, schema e build passaram; 41 testes unitários e 45 de integração passaram. Quatro painéis conferidos em desktop e celular; bancos locais alinhados com as oito migrações.
+- Situação: escopo local da V1.1 concluído. O relatório completo está em [V1_1_RELATORIO_IMPLEMENTACAO.md](./V1_1_RELATORIO_IMPLEMENTACAO.md). Publicação e os itens explicitamente fora do escopo permanecem separados da entrega local.

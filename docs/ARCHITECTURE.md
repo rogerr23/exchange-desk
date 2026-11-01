@@ -1,5 +1,7 @@
 # Arquitetura — ExchangeDesk V1
 
+Referência de arquitetura e decisões da base V1. A implementação atual da V1.1, seus fluxos e limites estão consolidados em [V1_1_RELATORIO_IMPLEMENTACAO.md](./V1_1_RELATORIO_IMPLEMENTACAO.md).
+
 ## 1. Visão geral
 
 A V1 será uma aplicação Next.js Full Stack com TypeScript, PostgreSQL e Prisma. Interface e lógica de servidor ficarão no mesmo projeto, sem necessidade de um backend separado.

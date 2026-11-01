@@ -200,6 +200,8 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   expect(panelHtml).toContain("Meu painel");
   expect(panelHtml).toContain("Somente registros criados por você");
   expect(panelHtml).toContain("O que fazer agora");
+  expect(panelHtml).toContain("Propostas aguardando aceite");
+  expect(panelHtml).toContain("Solicitações aguardando análise");
   expect(panelHtml).not.toContain("Gerenciar funcionários");
   const historyPage = await request("/simulacoes/historico", operator);
   expect(historyPage.status).toBe(200);
@@ -212,6 +214,8 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
   const adminHtml = await adminPanel.text();
   expect(adminHtml).toContain("Visão da equipe");
   expect(adminHtml).toContain("Gerenciar funcionários");
+  expect(adminHtml).toContain("Funcionários ativos");
+  expect(adminHtml).toContain("Funcionários desativados");
   expect(adminHtml).not.toContain("Nova simulação");
   expect(adminHtml).not.toContain("Simulações salvas");
   expect((await request("/api/simulacoes", admin)).status).toBe(403);
@@ -231,6 +235,9 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
     expect(html).not.toContain("Nova simulação");
     expect(html).not.toContain("Simulações salvas");
     expect(html).not.toContain("Gerenciar funcionários");
+    expect(html).toContain("Fila de análise da equipe");
+    expect(html).not.toContain("Funcionários ativos");
+    if (role === "OPERATIONS_ANALYST") expect(html).not.toContain("Propostas aguardando aceite");
     expect((await request("/api/operacoes", jar)).status).toBe(200);
     expect((await request("/api/funcionarios", jar)).status).toBe(403);
     expect((await request("/api/simulacoes", jar)).status).toBe(403);
