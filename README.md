@@ -13,7 +13,13 @@ O projeto organiza o fluxo interno e seu histórico. Não executa pagamentos, tr
 - Propostas com validade, aceite simulado e aprovação ou rejeição pelo analista.
 - Processamento simulado com falhas, retomada e novas tentativas.
 - Gestão de funcionários, perfis e desativação/reativação de acessos.
-- Painéis por perfil e auditoria das alterações.
+- Área de trabalho por perfil, indicadores por período e auditoria das alterações.
+
+## Indicadores
+
+A página **Indicadores** permite consultar os últimos 7, 30 ou 90 dias ou um intervalo personalizado de até 90 dias, em horário de Brasília. Os cartões abrem propostas, solicitações e operações com o mesmo filtro; o consultor consulta apenas seus registros.
+
+Entradas usam a data de criação da proposta (ou da solicitação, para o analista). Conclusões usam a data do evento no histórico. Falhas pendentes consideram operações ainda em falha com evento no período, sem duplicar tentativas. A espera média considera apenas solicitações recebidas no intervalo que continuam pendentes, do envio até a consulta, incluindo noites e fins de semana. O gráfico oferece os valores também em tabela.
 
 ## Tecnologias
 
@@ -73,6 +79,7 @@ Os testes de integração exigem um banco separado e descartável. A configuraç
 
 | Documento | Conteúdo |
 | --- | --- |
+| [Guia do usuário](./docs/GUIA_DO_USUARIO.md) | Seções por perfil, instruções de uso e interpretação dos indicadores |
 | [Relatório da V1.1](./docs/V1_1_RELATORIO_IMPLEMENTACAO.md) | O que foi implementado, como funciona e os motivos das decisões |
 | [Desenvolvimento](./docs/DEVELOPMENT.md) | Ambiente, comandos, testes de integração e notas técnicas |
 | [API](./docs/API.md) | Endpoints, permissões, exemplos e respostas |

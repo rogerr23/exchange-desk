@@ -1,3 +1,5 @@
+import type { IndicatorQuery } from "@/domain/indicator-period";
+import { IndicatorFilterNotice } from "@/components/indicators/filter-notice";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Icon } from "@/components/icon";
@@ -7,9 +9,11 @@ import { requirePagePermission } from "@/server/auth/page-access";
 import { can } from "@/domain/permissions";
 import { listOperations } from "@/server/services/operations";
 export const metadata: Metadata = { title: "Operações | ExchangeDesk" };
-export default async function OperationsPage() {
+export default async function OperationsPage({ searchParams }: { searchParams: Promise<IndicatorQuery> }) {
   const actor = await requirePagePermission("operations:read");
-  const operations = await listOperations();
+  const query = await searchParams;
+  const operations = await listOperations(undefined, query);
+  const filtered = query.indicador === "concluidas" || query.indicador === "falhas";
   return (
     <>
       <div className="page-heading">
@@ -25,10 +29,11 @@ export default async function OperationsPage() {
           Nova simulação
         </Link>}
       </div>
+      <IndicatorFilterNotice query={query} path="/operacoes" />
       <section className="surface-card mt-8 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-5">
           <h2 className="text-sm font-semibold">
-            {actor.role !== "CONSULTANT" ? "Todas as operações" : "Operações registradas por você"}{" "}
+            {filtered ? "Operações no recorte" : actor.role !== "CONSULTANT" ? "Todas as operações" : "Operações registradas por você"}{" "}
             <span className="ml-2 text-muted">{operations.length}</span>
           </h2>
           <span className="hidden text-xs text-muted sm:block">
@@ -44,12 +49,12 @@ export default async function OperationsPage() {
               className="mx-auto mb-4 text-muted"
             />
             <h2 className="font-semibold">
-              Nenhuma operação registrada.
+              Nenhuma operação encontrada.
             </h2>
             <p className="mt-2 text-sm text-muted">
-              {can(actor.role, "quotes:simulate") ? "Comece por uma simulação e confirme os valores para registrar." : "As operações da equipe aparecerão aqui quando forem registradas."}
+              {filtered ? "Nenhuma operação corresponde ao recorte dos indicadores." : can(actor.role, "quotes:simulate") ? "Comece por uma simulação e confirme os valores para registrar." : "As operações da equipe aparecerão aqui quando forem registradas."}
             </p>
-            {can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary mt-6">
+            {!filtered && can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary mt-6">
               Simular conversão
               <Icon name="arrow" width="17" height="17" />
             </Link>}

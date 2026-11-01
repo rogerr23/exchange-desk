@@ -474,3 +474,71 @@ it("limita a fila do painel às cinco solicitações pendentes mais antigas, sem
   expect(overview.requests.PENDING_REVIEW).toBe(7);
   expect(overview.pendingRequests.map(r => r.id)).toEqual(ids.slice(0, 5));
 });
+
+it("indicadores: respeita Brasília, escopo, eventos e o mesmo recorte nas listagens", async () => {
+  const { getIndicators } = await import("@/server/services/indicators");
+  const { listOperations } = await import("@/server/services/operations");
+  const query = { de: "2026-10-31", ate: "2026-11-01" };
+  const now = new Date("2026-11-02T03:00:00Z");
+  const other = await db.user.create({ data: { name: "Outro consultor", email: "indicators@example.test", passwordHash: "unused", role: "CONSULTANT" } });
+  async function proposalAt(date: string, actorId = actors.CONSULTANT) {
+    login(actorId);
+    const result = await createProposal({ customerId, simulationToken: token({ actorId }) });
+    await db.proposal.update({ where: { id: result.proposal.id }, data: { createdAt: new Date(date) } });
+    return result.proposal.id;
+  }
+  await proposalAt("2026-10-31T02:59:59.999Z"); // Fora do início em Brasília.
+  const first = await proposalAt("2026-10-31T03:00:00Z");
+  const last = await proposalAt("2026-11-02T02:59:59.999Z");
+  await proposalAt("2026-11-02T03:00:00Z"); // Limite final exclusivo.
+  await proposalAt("2026-11-01T12:00:00Z", other.id);
+  async function pending(date: string, actorId = actors.CONSULTANT) {
+    const id = await proposalAt("2026-10-01T12:00:00Z", actorId);
+    await acceptProposal(id, acceptance);
+    return db.exchangeRequest.update({ where: { proposalId: id }, data: { createdAt: new Date(date) } });
+  }
+  const oldest = await pending("2026-10-31T03:00:00Z");
+  await pending("2026-11-01T03:00:00Z");
+  await pending("2026-10-30T03:00:00Z"); // Fila anterior, fora do recorte.
+  await pending("2026-11-01T03:00:00Z", other.id);
+  async function operation(status: "COMPLETED" | "FAILED", actorId = actors.CONSULTANT) {
+    const id = await proposalAt("2026-10-01T12:00:00Z", actorId);
+    const accepted = await acceptProposal(id, acceptance);
+    login(actors.OPERATIONS_ANALYST);
+    const request = await decideExchangeRequest(accepted.proposal.request!.id, { decision: "APPROVED" });
+    const operationId = request.operationId!;
+    await db.exchangeOperation.update({ where: { id: operationId }, data: { status, createdAt: new Date("2026-10-01T12:00:00Z") } });
+    await db.operationAuditEvent.create({ data: { operationId, actorId: actors.OPERATIONS_ANALYST, action: "STATUS_CHANGED", previousStatus: "PROCESSING", newStatus: status, occurredAt: new Date("2026-11-01T12:00:00Z") } });
+    return operationId;
+  }
+  const completed = await operation("COMPLETED");
+  const failed = await operation("FAILED");
+  // Duas falhas da mesma operação contam como uma operação, não duas tentativas.
+  await db.operationAuditEvent.create({ data: { operationId: failed, actorId: actors.OPERATIONS_ANALYST, action: "STATUS_CHANGED", previousStatus: "PROCESSING", newStatus: "FAILED", occurredAt: new Date("2026-11-01T13:00:00Z") } });
+  const recovered = await operation("FAILED");
+  await db.exchangeOperation.update({ where: { id: recovered }, data: { status: "PROCESSING" } });
+  await operation("COMPLETED", other.id);
+
+  login(actors.CONSULTANT);
+  const own = await getIndicators(query, now);
+  expect(own).toMatchObject({ entries: 2, pending: 2, completed: 1, failed: 1, averageWaitMs: 36 * 60 * 60_000, oldestWaitMs: 48 * 60 * 60_000 });
+  expect(own.trend.map(bucket => bucket.count)).toEqual([1, 1]);
+  expect(own.oldestRequests[0].id).toBe(oldest.id);
+  expect((await listProposals({ ...query, indicador: "entradas" })).map(row => row.id).sort()).toEqual([first, last].sort());
+  expect(await listRequests({ ...query, indicador: "pendentes" })).toHaveLength(own.pending);
+  expect((await listOperations(undefined, { ...query, indicador: "concluidas" })).map(row => row.id)).toEqual([completed]);
+  expect((await listOperations(undefined, { ...query, indicador: "falhas" })).map(row => row.id)).toEqual([failed]);
+
+  login(actors.MANAGER);
+  const team = await getIndicators(query, now);
+  expect(team).toMatchObject({ entries: 3, pending: 3, completed: 2, failed: 1 });
+  login(actors.OPERATIONS_ANALYST);
+  const analyst = await getIndicators(query, now);
+  expect(analyst.entries).toBe((await listRequests({ ...query, indicador: "entradas" })).length);
+  expect(analyst.pending).toBe(team.pending);
+  const empty = await getIndicators({ de: "2026-09-01", ate: "2026-09-07" }, now);
+  expect(empty).toMatchObject({ entries: 0, pending: 0, completed: 0, failed: 0, averageWaitMs: null, oldestWaitMs: null, oldestRequests: [] });
+  expect(empty.trend.every(bucket => bucket.count === 0)).toBe(true);
+  vi.mocked(auth).mockResolvedValue(null as never);
+  await expect(getIndicators(query, now)).rejects.toMatchObject({ status: 401 });
+});

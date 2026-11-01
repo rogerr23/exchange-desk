@@ -14,6 +14,8 @@ const paths = {
   shield: "M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Zm-4 9 3 3 5-6",
   check: "m5 12 4 4L19 6",
   logout: "M9 21H4V3h5m6 5 4 4-4 4m-6-4h10",
+  menu: "M4 6h16M4 12h16M4 18h16",
+  chart: "M4 3v18h17M9 16v-5m5 5V7m5 9V4",
   grid: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
   info: "M12 11v6m0-10v.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
 } as const;

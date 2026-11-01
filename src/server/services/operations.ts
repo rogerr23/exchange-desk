@@ -1,4 +1,6 @@
 import "server-only";
+import type { IndicatorQuery } from "@/domain/indicator-period";
+import { operationIndicatorWhere, readIndicatorFilter } from "./indicator-filters";
 import { Prisma } from "@/generated/prisma/client";
 import { operationScope } from "@/domain/permissions";
 import { canChangeStatus } from "@/domain/operation-status";
@@ -48,10 +50,13 @@ function statusConflict() {
   return new AppError(409, "STATUS_CONFLICT", "Esta operação foi alterada. Atualize os dados antes de tentar novamente.");
 }
 
-export async function listOperations(limit?: number) {
+export async function listOperations(limit?: number, query: IndicatorQuery = {}) {
   const actor = await requirePermission("operations:read");
+  const filter = readIndicatorFilter(query);
+  const where = filter && (filter.metric === "concluidas" || filter.metric === "falhas")
+    ? operationIndicatorWhere(filter.metric, filter.period) : {};
   const operations = await getDb().exchangeOperation.findMany({
-    where: operationScope(actor),
+    where: { ...operationScope(actor), ...where },
     take: limit, select: operationSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
   return operations.map(serializeOperation);

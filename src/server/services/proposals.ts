@@ -1,4 +1,6 @@
 import "server-only";
+import type { IndicatorQuery } from "@/domain/indicator-period";
+import { periodDates, readIndicatorFilter } from "./indicator-filters";
 import { Prisma } from "@/generated/prisma/client";
 import type { Role } from "@/domain/permissions";
 import { proposalStatus } from "@/domain/proposal-status";
@@ -87,9 +89,11 @@ export async function createProposal(input: unknown) {
   }
 }
 
-export async function listProposals() {
+export async function listProposals(query: IndicatorQuery = {}) {
   const actor = await requirePermission("proposals:read");
-  const rows = await getDb().proposal.findMany({ where: scope(actor), select: publicFields, orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
+  const filter = readIndicatorFilter(query);
+  const createdAt = filter?.metric === "entradas" ? periodDates(filter.period) : undefined;
+  const rows = await getDb().proposal.findMany({ where: { ...scope(actor), createdAt }, select: publicFields, orderBy: [{ createdAt: "desc" }, { id: "asc" }] });
   return rows.map(serialize);
 }
 
@@ -134,10 +138,15 @@ const requestFields = {
   proposal: { select: detailFields },
 } satisfies Prisma.ExchangeRequestSelect;
 
-export async function listRequests() {
+export async function listRequests(query: IndicatorQuery = {}) {
   const actor = await requirePermission("requests:read");
+  const filter = readIndicatorFilter(query);
+  const active = filter && (filter.metric === "entradas" || filter.metric === "pendentes");
   const rows = await getDb().exchangeRequest.findMany({
-    where: actor.role === "CONSULTANT" ? { createdById: actor.id } : {},
+    where: {
+      ...(actor.role === "CONSULTANT" ? { createdById: actor.id } : {}),
+      ...(active ? { createdAt: periodDates(filter.period), ...(filter.metric === "pendentes" ? { status: "PENDING_REVIEW" as const } : {}) } : {}),
+    },
     select: requestFields, orderBy: [{ createdAt: "desc" }, { id: "asc" }],
   });
   return rows.map((row) => ({ ...row, proposal: serialize(row.proposal) }));

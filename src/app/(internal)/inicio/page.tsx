@@ -2,140 +2,62 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Icon } from "@/components/icon";
 import { StatusBadge } from "@/components/operations/status-badge";
-import { SimulationHistory } from "@/components/simulations/simulation-history";
 import { dateTime, money } from "@/lib/format";
-import { can, ROLE_LABELS } from "@/domain/permissions";
 import { requirePagePermission } from "@/server/auth/page-access";
-import { getDashboardOverview } from "@/server/services/dashboard";
+import { getWorkspaceOverview } from "@/server/services/dashboard";
 import { listOperations } from "@/server/services/operations";
-import { getSimulationCount, listSimulations } from "@/server/services/simulations";
 
-export const metadata: Metadata = { title: "Painel | ExchangeDesk" };
+export const metadata: Metadata = { title: "Início | ExchangeDesk" };
+
 export default async function StartPage({ searchParams }: { searchParams: Promise<{ acesso?: string }> }) {
   const actor = await requirePagePermission("operations:read");
-  const [overview, operations, simulations, simulationCount, { acesso }] = await Promise.all([
-    getDashboardOverview(), listOperations(5),
-    can(actor.role, "simulations:read") ? listSimulations(5) : Promise.resolve([]),
-    can(actor.role, "simulations:read") ? getSimulationCount() : Promise.resolve(0), searchParams,
+  const [workspace, operations, { acesso }] = await Promise.all([
+    getWorkspaceOverview(), listOperations(5), searchParams,
   ]);
-  const counts = overview.operations;
-  const isConsultant = actor.role === "CONSULTANT";
-  const descriptions = {
-    CONSULTANT: "Suas simulações, suas operações e o próximo passo de cada atendimento.",
-    OPERATIONS_ANALYST: "Confira as operações da equipe e acompanhe sua análise.",
-    MANAGER: "Supervisione as operações e os indicadores da equipe.",
-    ADMIN: "Gerencie os acessos e consulte operações para suporte à equipe.",
-  };
-  const guidance = {
-    CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e salve uma proposta. O prazo de aceite é o restante dos 15 minutos da simulação.", "Registre o aceite simulado para gerar uma solicitação e acompanhe a análise."],
-    OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Aprove ou rejeite nos detalhes da solicitação. A rejeição exige um motivo e a aprovação cria a operação.", "Na operação aprovada, inicie o processamento simulado e acompanhe as tentativas. Retome uma tentativa interrompida ou inicie outra após falha."],
-    MANAGER: ["Acompanhe os indicadores de toda a equipe.", "Consulte os detalhes e o histórico das operações para supervisão."],
-    ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Gerencie perfis, desativações e reativações nos detalhes do funcionário. O histórico preserva quem fez cada alteração.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
-  };
-  const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  const metrics = [
-    ...(can(actor.role, "simulations:read") ? [{ label: "Simulações salvas", value: simulationCount, note: "Desde a criação do histórico", href: "/simulacoes/historico" }] : []),
-    { label: "Pendentes", value: counts.PENDING, note: "Aguardando continuidade operacional", href: "/operacoes" },
-    { label: "Em análise", value: counts.UNDER_REVIEW, note: "Em conferência de dados", href: "/operacoes" },
-    { label: "Processando", value: counts.PROCESSING, note: "Tentativas simuladas em andamento", href: "/operacoes" },
-    { label: "Falhas", value: counts.FAILED, note: "Aguardando nova tentativa", href: "/operacoes" },
-    { label: "Concluídas", value: counts.COMPLETED, note: "Fluxo encerrado", href: "/operacoes" },
-    { label: "Canceladas", value: counts.CANCELED, note: "Encerradas sem conclusão", href: "/operacoes" },
-  ];
-  const activityMetrics = [
-    ...(overview.proposals ? [
-      { label: "Propostas aguardando aceite", value: overview.proposals.awaitingAcceptance, href: "/propostas" },
-      { label: "Propostas expiradas", value: overview.proposals.expired, href: "/propostas" },
-      { label: "Propostas aceitas", value: overview.proposals.accepted, href: "/propostas" },
-    ] : []),
-    { label: "Solicitações aguardando análise", value: overview.requests.PENDING_REVIEW, href: "/solicitacoes" },
-    { label: "Solicitações aprovadas", value: overview.requests.APPROVED, href: "/solicitacoes" },
-    { label: "Solicitações rejeitadas", value: overview.requests.REJECTED, href: "/solicitacoes" },
-    ...(overview.employees ? [
-      { label: "Funcionários ativos", value: overview.employees.active, href: "/funcionarios" },
-      { label: "Funcionários desativados", value: overview.employees.inactive, href: "/funcionarios" },
-    ] : []),
+  const consultant = actor.role === "CONSULTANT";
+  const analyst = actor.role === "OPERATIONS_ANALYST";
+  const admin = actor.role === "ADMIN";
+  const primaryAction = consultant
+    ? { href: "/simulacoes", label: "Nova simulação", icon: "plus" as const }
+    : analyst ? { href: "/solicitacoes", label: "Analisar solicitações", icon: "operations" as const }
+    : admin ? { href: "/funcionarios", label: "Gerenciar acessos", icon: "users" as const }
+    : { href: "/operacoes", label: "Acompanhar operações", icon: "operations" as const };
+  const description = consultant ? "Retome seus atendimentos e acompanhe os próximos passos."
+    : analyst ? "Confira a fila de análise e dê continuidade às operações."
+    : admin ? "Cuide dos acessos e acompanhe os atendimentos da equipe."
+    : "Acompanhe as pendências e a atividade recente da equipe.";
+  const hasPending = workspace.requests.length || workspace.proposals.length || workspace.operations.length;
+  const shortcuts = [
+    { href: "/clientes", label: "Clientes", description: "Consulte os cadastros da equipe.", icon: "users" as const },
+    ...(consultant ? [{ href: "/simulacoes/historico", label: "Histórico de simulações", description: "Retome uma consulta anterior.", icon: "history" as const }]
+      : [{ href: "/propostas", label: "Propostas", description: analyst ? "Consulte propostas encaminhadas à análise." : "Consulte os atendimentos registrados.", icon: "exchange" as const }]),
   ];
   return <>
     <div className="page-heading">
-      <div>
-        <p className="eyebrow">{isConsultant ? "Meu painel" : "Visão da equipe"} · {ROLE_LABELS[actor.role]}</p>
-        <h1 className="page-title sm:text-4xl">Olá, {actor.name.split(" ")[0]}.</h1>
-        <p className="page-description">{descriptions[actor.role]}</p>
-      </div>
-      {can(actor.role, "quotes:simulate") && <Link href="/simulacoes" className="button-primary w-fit">Nova simulação<Icon name="arrow" width="17" height="17" /></Link>}
+      <div><p className="eyebrow">Seu dia no ExchangeDesk</p><h1 className="page-title sm:text-4xl">Olá, {actor.name.split(" ")[0]}.</h1><p className="page-description">{description}</p></div>
+      <Link href={primaryAction.href} className="button-primary w-fit shrink-0"><Icon name={primaryAction.icon} width="18" height="18" />{primaryAction.label}</Link>
     </div>
     {acesso === "negado" && <div role="alert" className="notice notice-error mt-6"><Icon name="lock" />Seu perfil não tem permissão para acessar esta área.</div>}
-    <section className="mt-8" aria-label="Propostas, solicitações e acessos">
-      <h2 className="text-sm font-semibold">{isConsultant ? "Meus atendimentos" : actor.role === "ADMIN" ? "Atendimento e suporte" : "Atendimentos da equipe"}</h2>
-      <p className="mt-2 text-xs leading-5 text-muted">{isConsultant ? "Seus registros, desde a proposta até a decisão do analista." : "Contadores da equipe, conforme as consultas permitidas ao seu perfil."} Os números representam registros, não valores financeiros.</p>
-      <dl className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-3">{activityMetrics.map(metric => <div key={metric.label} className="surface-card min-w-0 p-5">
-        <dt className="break-words text-sm text-muted"><Link href={metric.href} className="hover:underline">{metric.label}</Link></dt><dd className="mt-3 text-3xl font-semibold tabular-nums">{metric.value}</dd>
-      </div>)}</dl>
-    </section>
-    <section className="mt-8" aria-label="Resumo de atividades">
-      <p className="mb-4 text-xs text-muted">{isConsultant ? "Somente registros criados por você" : "Toda a equipe"} · {total} {total === 1 ? "operação" : "operações"} no total</p>
-      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {metrics.map((metric) => <div key={metric.label} className="surface-card min-w-0 p-5">
-          <dt className="text-sm text-muted"><Link href={metric.href} className="hover:underline">{metric.label}</Link></dt>
-          <dd className="mt-3 text-3xl font-semibold tabular-nums">{metric.value}</dd>
-          <dd className="mt-3 text-xs leading-5 text-muted">{metric.note}</dd>
-        </div>)}
-      </dl>
-    </section>
-    <div className="mt-7 flex flex-wrap gap-3">
-      <Link href="/propostas" className="button-secondary">Ver propostas</Link>
-      <Link href="/solicitacoes" className="button-secondary">Acompanhar solicitações</Link>
-      <Link href="/operacoes" className="button-secondary">{isConsultant ? "Minhas operações" : "Ver operações"}</Link>
-      {can(actor.role, "simulations:read") && <Link href="/simulacoes/historico" className="button-secondary">Minhas simulações</Link>}
-      {can(actor.role, "customers:create") && <Link href="/clientes/novo" className="button-secondary">Cadastrar cliente</Link>}
-      {can(actor.role, "employees:read") && <Link href="/funcionarios" className="button-secondary">Gerenciar funcionários</Link>}
-    </div>
-    <div className="mt-8 grid items-start gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="min-w-0 space-y-6">
-        <section className="surface-card overflow-hidden" aria-label="Solicitações aguardando análise">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-6"><h2 className="text-sm font-semibold">{isConsultant ? "Minhas solicitações aguardando análise" : "Fila de análise da equipe"}</h2><Link href="/solicitacoes" className="text-xs font-semibold text-brand-ink underline">Ver solicitações</Link></div>
-          <p className="px-6 pt-4 text-xs text-muted">Até cinco solicitações pendentes, das mais antigas para as mais recentes.</p>
-          {!overview.pendingRequests.length ? <p className="p-6 text-sm text-muted">Nenhuma solicitação aguardando análise neste escopo.</p> : <div className="divide-y divide-line">{overview.pendingRequests.map(request => <article key={request.id} className="space-y-2 p-6">
-            <Link href={`/solicitacoes/${request.id}`} className="break-words text-sm font-semibold text-brand-ink underline">{request.customerName}</Link>
-            <p className="break-words text-sm tabular-nums">{money(request.sourceAmount, request.sourceCurrency)} → {money(request.targetAmount, request.targetCurrency)}</p>
-            <p className="break-words text-xs text-muted">{dateTime(request.createdAt)} · Brasília{!isConsultant && ` · ${request.consultantName}`}</p>
-            {request.selfReviewBlocked && <p className="text-xs font-semibold text-warning">Autoria própria · decisão bloqueada</p>}
-          </article>)}</div>}
+    <div className="workspace-grid mt-9">
+      <div className="min-w-0 space-y-7">
+        <section className="surface-card overflow-hidden" aria-labelledby="pending-title">
+          <div className="section-heading"><div><h2 id="pending-title" className="font-semibold">{consultant ? "Seus próximos passos" : "No radar da equipe"}</h2><p className="mt-1.5 text-sm text-muted">{consultant ? "Propostas e atendimentos que ainda estão em andamento." : "Solicitações aguardando análise e operações em andamento."}</p></div><span className="section-icon"><Icon name="operations" /></span></div>
+          {!hasPending ? <div className="empty-state"><span className="mx-auto mb-4 grid size-11 place-items-center rounded-full bg-positive/10 text-positive"><Icon name="check" /></span><h3 className="text-sm font-semibold">Tudo em dia por aqui</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">Quando houver propostas pendentes, solicitações em análise ou operações em andamento, elas aparecerão aqui.</p></div> : <div>
+            {consultant && workspace.proposals.length > 0 && <div className="workspace-group"><h3 className="workspace-group-title">Propostas aguardando aceite</h3>{workspace.proposals.map(proposal => <Link key={proposal.id} href={`/propostas/${proposal.id}`} className="work-item"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{proposal.customer.name}</span><span className="mt-1 block text-sm text-muted tabular-nums">{money(proposal.sourceAmount, proposal.sourceCurrency)} → {money(proposal.targetAmount, proposal.targetCurrency)}</span><span className="mt-2 block text-xs text-muted">Validade até {dateTime(proposal.expiresAt)} · Brasília</span></span><span className="work-item-action">Revisar<Icon name="arrow" width="16" height="16" /></span></Link>)}</div>}
+            {workspace.requests.length > 0 && <div className="workspace-group"><h3 className="workspace-group-title">{consultant ? "Aguardando análise da equipe" : "Solicitações para análise"}</h3>{workspace.requests.map(request => <Link key={request.id} href={`/solicitacoes/${request.id}`} className="work-item"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{request.customerName}</span><span className="mt-1 block text-sm text-muted tabular-nums">{money(request.sourceAmount, request.sourceCurrency)} → {money(request.targetAmount, request.targetCurrency)}</span><span className="mt-2 block text-xs text-muted">Enviada em {dateTime(request.createdAt)} · Brasília</span>{request.selfReviewBlocked && <span className="mt-2 block text-xs text-warning">Autoria própria · decisão bloqueada</span>}</span><span className="work-item-action">{analyst && !request.selfReviewBlocked ? "Analisar" : "Acompanhar"}<Icon name="arrow" width="16" height="16" /></span></Link>)}</div>}
+            {workspace.operations.length > 0 && <div className="workspace-group"><h3 className="workspace-group-title">Operações para acompanhar</h3>{workspace.operations.map(operation => <Link key={operation.id} href={`/operacoes/${operation.id}`} className="work-item"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{operation.customer.name}</span><span className="mt-1 block text-sm text-muted tabular-nums">{money(operation.sourceAmount, operation.sourceCurrency)} → {money(operation.targetAmount, operation.targetCurrency)}</span></span><span className="flex shrink-0 items-center gap-3"><StatusBadge status={operation.status} /><Icon name="arrow" width="16" height="16" className="text-muted" /></span></Link>)}</div>}
+            <p className="border-t border-line px-6 py-4 text-xs leading-5 text-muted">Até cinco registros por grupo. Propostas por validade; solicitações e operações com espera mais longa primeiro.</p>
+          </div>}
         </section>
-        <section className="surface-card overflow-hidden">
-          <div className="border-b border-line p-6"><h2 className="text-sm font-semibold">{isConsultant ? "Minhas operações recentes" : "Operações recentes da equipe"}</h2></div>
-          {operations.length === 0 ? <div className="p-6 text-sm leading-6 text-muted">Nenhuma operação registrada neste escopo.</div> :
-            <div className="divide-y divide-line">{operations.map((operation) => <article key={operation.id} className="flex flex-wrap items-center justify-between gap-4 p-6">
-              <div className="min-w-0">
-                <Link href={`/operacoes/${operation.id}`} className="break-words text-sm font-semibold text-brand-ink underline">{operation.customer.name}</Link>
-                <p className="mt-2 break-words text-sm tabular-nums">{money(operation.sourceAmount, operation.sourceCurrency)} → {money(operation.targetAmount, operation.targetCurrency)}</p>
-                <p className="mt-2 text-xs text-muted">{dateTime(operation.createdAt)} · Brasília{!isConsultant && ` · ${operation.createdBy.name}`}</p>
-              </div>
-              <StatusBadge status={operation.status} />
-            </article>)}</div>}
+        <section className="surface-card overflow-hidden" aria-labelledby="recent-title">
+          <div className="section-heading"><div><h2 id="recent-title" className="font-semibold">Operações recentes</h2><p className="mt-1.5 text-sm text-muted">{consultant ? "Os últimos registros dos seus atendimentos." : "Os últimos registros da equipe."}</p></div><Link href="/operacoes" className="text-link">Ver todas<Icon name="arrow" width="16" height="16" /></Link></div>
+          {!operations.length ? <div className="px-6 py-8"><p className="text-sm text-muted">Nenhuma operação registrada por enquanto.</p><p className="mt-2 text-xs leading-5 text-muted">As operações aparecem aqui após a aprovação de uma solicitação.</p></div> : <div className="divide-y divide-line">{operations.map(operation => <Link key={operation.id} href={`/operacoes/${operation.id}`} className="work-item"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{operation.customer.name}</span><span className="mt-1 block text-sm text-muted tabular-nums">{money(operation.sourceAmount, operation.sourceCurrency)} → {money(operation.targetAmount, operation.targetCurrency)}</span><span className="mt-2 block text-xs text-muted">{dateTime(operation.createdAt)} · Brasília{!consultant && ` · ${operation.createdBy.name}`}</span></span><StatusBadge status={operation.status} /></Link>)}</div>}
         </section>
-        {can(actor.role, "simulations:read") && <section className="surface-card overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-6">
-            <h2 className="text-sm font-semibold">Minhas simulações recentes</h2>
-            <Link href="/simulacoes/historico" className="text-xs font-semibold text-brand-ink underline">Ver histórico</Link>
-          </div>
-          <SimulationHistory simulations={simulations} isAdmin={false} />
-        </section>}
       </div>
-      <aside className="space-y-6">
-        <section className="surface-card p-6">
-          <h2 className="text-sm font-semibold">O que fazer agora</h2>
-          <ol className="mt-5 space-y-5 text-sm leading-6 text-muted">
-            {guidance[actor.role].map((step) => <li key={step}>{step}</li>)}
-          </ol>
-        </section>
-        <section className="surface-card p-6">
-          <h2 className="text-sm font-semibold">Entenda os valores</h2>
-          <p className="mt-4 text-sm leading-6 text-muted">Valor de destino = valor de origem × taxa. O resultado é arredondado para duas casas decimais.</p>
-          <p className="mt-3 text-sm leading-6 text-muted">As cotações são referências diárias, sem atualização em tempo real. A simulação não calcula tarifas, spread ou impostos.</p>
-          <p className="mt-3 text-sm leading-6 text-muted">O sistema registra o acompanhamento. Confirmar ou concluir uma operação não executa pagamento nem liquidação financeira.</p>
-        </section>
+      <aside className="min-w-0 space-y-5" aria-label="Atalhos e ajuda">
+        <section className="surface-card p-5"><p className="eyebrow mb-4">Acesso rápido</p><div className="space-y-1">{shortcuts.map(shortcut => <Link key={shortcut.href} href={shortcut.href} className="shortcut-link"><Icon name={shortcut.icon} className="mt-0.5 shrink-0 text-brand-ink" /><span><span className="block text-sm font-semibold">{shortcut.label}</span><span className="mt-1 block text-xs leading-5 text-muted">{shortcut.description}</span></span></Link>)}</div></section>
+        <section className="insight-card"><span className="section-icon"><Icon name="chart" /></span><h2 className="mt-4 text-sm font-semibold">Os números, quando precisar</h2><p className="mt-2 text-sm leading-6 text-muted">O resumo de propostas, solicitações e operações tem um espaço próprio.</p><Link href="/indicadores" className="text-link mt-5">Consultar indicadores<Icon name="arrow" width="16" height="16" /></Link></section>
+        <details className="surface-card p-5"><summary className="cursor-pointer text-sm font-semibold">Como funciona o atendimento</summary><ol className="mt-4 list-decimal space-y-3 pl-4 text-xs leading-5 text-muted"><li>O consultor simula os valores e cria a proposta.</li><li>O aceite simulado encaminha a solicitação para análise.</li><li>A aprovação cria a operação para processamento simulado.</li></ol><p className="mt-4 border-t border-line pt-4 text-xs leading-5 text-muted">As cotações são referências diárias. O sistema não executa pagamentos ou liquidação financeira.</p></details>
       </aside>
     </div>
   </>;
