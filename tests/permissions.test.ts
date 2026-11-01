@@ -12,7 +12,7 @@ describe("permissões da equipe", () => {
   it("separa atendimento, análise e supervisão sem herança operacional do administrador", () => {
     expect(can("CONSULTANT", "operations:read")).toBe(true);
     for (const role of ROLES) {
-      expect(can(role, "operations:create")).toBe(role === "CONSULTANT");
+      expect(can(role, "proposals:create")).toBe(role === "CONSULTANT");
       expect(can(role, "customers:create")).toBe(role === "CONSULTANT");
       expect(can(role, "quotes:simulate")).toBe(role === "CONSULTANT");
       expect(can(role, "simulations:read")).toBe(role === "CONSULTANT");
@@ -23,8 +23,8 @@ describe("permissões da equipe", () => {
   it("recusa todas as ações sem um perfil autenticado", () => {
     const actions: Permission[] = [
       "employees:create", "employees:read", "customers:read", "customers:create",
-      "quotes:simulate", "simulations:read", "operations:read", "operations:create",
-      "operations:change-status", "audit:read",
+      "quotes:simulate", "simulations:read", "operations:read", "proposals:create",
+      "operations:change-status", "proposals:read", "proposals:accept", "requests:read", "audit:read",
     ];
     for (const action of actions) {
       expect(can(null, action)).toBe(false);

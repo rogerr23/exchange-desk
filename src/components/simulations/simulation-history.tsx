@@ -27,13 +27,13 @@ export function SimulationHistory({ simulations, isAdmin }: {
             <details className="mt-1">
               <summary className="cursor-pointer text-brand-ink">Consulta e validade original</summary>
               <p>Consulta: {dateTime(simulation.quoteFetchedAt)} · Brasília</p>
-              <p>Prazo para confirmar: {dateTime(simulation.expiresAt)} · Brasília</p>
+              <p>Prazo original de aceite: {dateTime(simulation.expiresAt)} · Brasília</p>
             </details>
           </div>
           <div className="flex flex-wrap items-center gap-3 xl:col-start-2 xl:row-start-1 xl:row-span-2 xl:flex-col xl:items-end">
-            {simulation.operationId ? (
+            {simulation.proposalId ? <Link href={`/propostas/${simulation.proposalId}`} className="text-sm font-semibold text-brand-ink underline">Ver proposta</Link> : simulation.operationId ? (
               <Link href={`/operacoes/${simulation.operationId}`} className="text-sm font-semibold text-brand-ink underline">Ver operação registrada</Link>
-            ) : <span className="text-xs text-muted">Sem operação registrada</span>}
+            ) : <span className="text-xs text-muted">Sem proposta registrada</span>}
             <Link href={`/simulacoes?${new URLSearchParams({ origem: simulation.sourceCurrency, destino: simulation.targetCurrency, valor: simulation.sourceAmount })}`} className="button-secondary">Simular novamente</Link>
           </div>
         </article>

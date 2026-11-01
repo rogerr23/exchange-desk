@@ -10,6 +10,8 @@ export function AppNavigation({ role }: { role: Role }) {
     { href: "/inicio", label: role === "CONSULTANT" ? "Meu painel" : "Visão geral", icon: "grid" as const },
     ...(can(role, "customers:read") ? [{ href: "/clientes", label: "Clientes", icon: "users" as const }] : []),
     ...(can(role, "quotes:simulate") ? [{ href: "/simulacoes", label: "Minhas simulações", icon: "exchange" as const }] : []),
+    ...(can(role, "proposals:read") ? [{ href: "/propostas", label: "Propostas", icon: "exchange" as const }] : []),
+    ...(can(role, "requests:read") ? [{ href: "/solicitacoes", label: "Solicitações", icon: "operations" as const }] : []),
     ...(can(role, "operations:read") ? [{ href: "/operacoes", label: role === "CONSULTANT" ? "Minhas operações" : "Operações", icon: "operations" as const }] : []),
     ...(can(role, "employees:read")
       ? [

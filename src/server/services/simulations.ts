@@ -51,11 +51,17 @@ export async function listSimulations(limit = 50) {
     where: { ...scope, confirmationKey: { in: rows.map((row) => row.confirmationKey) } },
     select: { id: true, confirmationKey: true },
   }) : [];
+  const proposals = rows.length ? await db.proposal.findMany({
+    where: { ...scope, confirmationKey: { in: rows.map((row) => row.confirmationKey) } },
+    select: { id: true, confirmationKey: true },
+  }) : [];
+  const proposalIds = new Map(proposals.map((proposal) => [proposal.confirmationKey, proposal.id]));
   const operationIds = new Map(operations.map((operation) => [operation.confirmationKey, operation.id]));
   return rows.map(({ confirmationKey, ...row }) => ({
     ...row, sourceAmount: row.sourceAmount.toFixed(2), targetAmount: row.targetAmount.toFixed(2),
     exchangeRate: row.exchangeRate.toFixed(8), quoteReferenceDate: row.quoteReferenceDate.toISOString().slice(0, 10),
     operationId: operationIds.get(confirmationKey) ?? null,
+    proposalId: proposalIds.get(confirmationKey) ?? null,
   }));
 }
 

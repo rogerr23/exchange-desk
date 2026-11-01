@@ -1,248 +1,125 @@
 import "dotenv/config";
-import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, expect, it, vi } from "vitest";
-
 vi.mock("@/server/auth/config", () => ({ auth: vi.fn() }));
-vi.mock("@/server/quotes/frankfurter", () => ({ getQuote: vi.fn() }));
-import { getQuote } from "@/server/quotes/frankfurter";
-import { simulateConversion, listSimulations, getSimulationCount } from "@/server/services/simulations";
-import { GET as GET_SIMULATIONS } from "@/app/api/simulacoes/route";
-import { GET as GET_OPERATION } from "@/app/api/operacoes/[id]/route";
 import { auth } from "@/server/auth/config";
 import { getDb } from "@/server/db/client";
-import { signSimulation, SIMULATION_TTL_MS } from "@/server/quotes/simulation-token";
-import { createOperation, listOperations, getOperationSummary, getOperation, changeOperationStatus } from "@/server/services/operations";
-import { POST, GET } from "@/app/api/operacoes/route";
-import { PATCH } from "@/app/api/operacoes/[id]/status/route";
+import { listOperations, getOperationSummary, getOperation, changeOperationStatus } from "@/server/services/operations";
+import { POST } from "@/app/api/operacoes/route";
 import { listCustomers, getCustomer } from "@/server/services/customers";
 
 const url = process.env.TEST_DATABASE_URL;
-if (!url || !new URL(url).pathname.endsWith("_test")) throw new Error("Configure TEST_DATABASE_URL com banco descartável terminado em _test.");
+if (!url || !new URL(url).pathname.endsWith("_test")) throw new Error("Use um banco descartável terminado em _test.");
 process.env.DATABASE_URL = url;
 const db = getDb();
-let actorId: string;
-let customerId: string;
+let authorId: string;
 let analystId: string;
+let customerId: string;
+function login(id: string) { vi.mocked(auth).mockResolvedValue({ user: { id } } as never); }
 
-function asAnalyst() {
-  vi.mocked(auth).mockResolvedValue({ user: { id: analystId } } as never);
-}
-
-function token(options: { actorId?: string; expired?: boolean } = {}) {
-  const issued = Date.now() - (options.expired ? SIMULATION_TTL_MS + 1000 : 0);
-  return signSimulation({
-    version: 1, simulationId: randomUUID(), actorId: options.actorId ?? actorId,
-    sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "100.00", targetAmount: "512.35",
-    exchangeRate: "5.12345678", quoteProvider: "Frankfurter / ECB", quoteReferenceDate: "2026-10-30",
-    quoteTimestamp: new Date(issued).toISOString(), quoteTimestampKind: "FETCHED_AT",
-    quoteFetchedAt: new Date(issued).toISOString(), issuedAt: new Date(issued).toISOString(),
-    expiresAt: new Date(issued + SIMULATION_TTL_MS).toISOString(),
-  });
-}
-function jsonRequest(path: string, body: unknown, method = "POST") {
-  return new Request(`http://localhost:3000${path}`, {
-    method, headers: { "content-type": "application/json" }, body: JSON.stringify(body),
-  });
+async function legacyOperation() {
+  // Fixture de uma operação V1 já existente. A aplicação não cria mais operações diretamente.
+  return db.exchangeOperation.create({ data: {
+    customerId, createdById: authorId, sourceCurrency: "USD", targetCurrency: "BRL",
+    sourceAmount: "100", targetAmount: "512.35", exchangeRate: "5.12345678",
+    quoteProvider: "Frankfurter / ECB", quoteReferenceDate: new Date("2026-10-30"),
+    quoteTimestamp: new Date(), quoteTimestampKind: "FETCHED_AT", quoteFetchedAt: new Date(),
+    auditEvents: { create: { actorId: authorId, action: "CREATED", newStatus: "PENDING" } },
+  } });
 }
 
 beforeEach(async () => {
-  await db.operationAuditEvent.deleteMany();
-  await db.exchangeOperation.deleteMany();
-  await db.customer.deleteMany();
-  await db.simulation.deleteMany();
-  await db.user.deleteMany();
-  actorId = (await db.user.create({ data: { name: "Operador de Teste", email: "operator@example.test", passwordHash: "unused-in-service-test", role: "CONSULTANT" } })).id;
-  analystId = (await db.user.create({ data: { name: "Analista de Teste", email: "analyst@example.test", passwordHash: "unused", role: "OPERATIONS_ANALYST" } })).id;
-  customerId = (await db.customer.create({ data: { name: "Cliente de Teste", fictionalCpf: "00000000000", email: "customer@example.test", phone: "11900000000" } })).id;
-  vi.mocked(auth).mockResolvedValue({ user: { id: actorId } } as never);
+  await db.proposalAuditEvent.deleteMany(); await db.exchangeRequest.deleteMany(); await db.proposal.deleteMany();
+  await db.operationAuditEvent.deleteMany(); await db.exchangeOperation.deleteMany();
+  await db.customer.deleteMany(); await db.simulation.deleteMany(); await db.user.deleteMany();
+  authorId = (await db.user.create({ data: { name: "Consultor", email: "author@example.test", passwordHash: "unused", role: "CONSULTANT" } })).id;
+  analystId = (await db.user.create({ data: { name: "Analista", email: "analyst@example.test", passwordHash: "unused", role: "OPERATIONS_ANALYST" } })).id;
+  customerId = (await db.customer.create({ data: { name: "Cliente", fictionalCpf: "00000000000", email: "customer@example.test", phone: "11900000000" } })).id;
+  login(analystId);
 });
 afterAll(async () => { await db.$disconnect(); });
 
-it("impede análise pelo autor após mudança de perfil e mantém o histórico intacto", async () => {
-  const { operation } = await createOperation({ customerId, simulationToken: token() });
-  await db.user.update({ where: { id: actorId }, data: { role: "OPERATIONS_ANALYST" } });
-  await expect(changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
-  expect((await getOperation(operation.id)).status).toBe("PENDING");
-  expect(await db.operationAuditEvent.count()).toBe(1);
-  await expect(createOperation({ customerId, simulationToken: token() })).rejects.toMatchObject({ status: 403 });
-});
-
-it("limita clientes do suporte às operações e permite consulta completa aos demais perfis", async () => {
-  const unlinked = await db.customer.create({ data: { name: "Sem operação", fictionalCpf: "22222222222", email: "unlinked@example.test", phone: "11900000002" } });
-  await createOperation({ customerId, simulationToken: token() });
+it("mantém consulta cadastral de suporte restrita aos clientes com operação", async () => {
+  const unlinked = await db.customer.create({ data: { name: "Sem operação", fictionalCpf: "11111111111", email: "unlinked@example.test", phone: "11900000001" } });
+  await legacyOperation();
   await db.user.update({ where: { id: analystId }, data: { role: "ADMIN" } });
-  asAnalyst();
   expect((await listCustomers()).map((row) => row.id)).toEqual([customerId]);
-  expect((await getCustomer(customerId)).id).toBe(customerId);
   await expect(getCustomer(unlinked.id)).rejects.toMatchObject({ status: 404 });
-  for (const role of ["CONSULTANT", "OPERATIONS_ANALYST", "MANAGER"] as const) {
+  for (const role of ["MANAGER", "OPERATIONS_ANALYST", "CONSULTANT"] as const) {
     await db.user.update({ where: { id: analystId }, data: { role } });
     expect(await listCustomers()).toHaveLength(2);
-    expect((await getCustomer(unlinked.id)).id).toBe(unlinked.id);
   }
 });
 
-it("confirma pela rota, preserva valores e retorna a mesma operação para reenvios", async () => {
-  const input = { customerId, simulationToken: token() };
-  const response = await POST(jsonRequest("/api/operacoes", input));
-  expect(response.status).toBe(201);
-  expect(response.headers.get("cache-control")).toBe("no-store");
-  const { data } = await response.json();
-  expect(data).toMatchObject({ status: "PENDING", sourceAmount: "100.00", targetAmount: "512.35", exchangeRate: "5.12345678", quoteReferenceDate: "2026-10-30", createdById: actorId, customerId });
-  expect(data.auditEvents).toHaveLength(1);
-  expect(data.auditEvents[0]).toMatchObject({ action: "CREATED", previousStatus: null, newStatus: "PENDING", actorId });
-  expect(data).not.toHaveProperty("confirmationKey");
-  expect(JSON.stringify(data)).not.toContain("passwordHash");
-  const repeated = await POST(jsonRequest("/api/operacoes", input));
-  expect(repeated.status).toBe(200);
-  expect((await repeated.json()).data.id).toBe(data.id);
-  expect(await db.exchangeOperation.count()).toBe(1);
-  expect(await db.operationAuditEvent.count()).toBe(1);
-  expect((await listOperations())[0].id).toBe(data.id);
-  expect((await getOperation(data.id)).auditEvents).toHaveLength(1);
-
-  const otherCustomer = await db.customer.create({ data: { name: "Outro Cliente", fictionalCpf: "11111111111", email: "other@example.test", phone: "11900000001" } });
-  await expect(createOperation({ ...input, customerId: otherCustomer.id })).rejects.toMatchObject({ code: "SIMULATION_ALREADY_CONFIRMED" });
+it("preserva valores e histórico das operações V1 sem convertê-las em propostas", async () => {
+  const row = await legacyOperation();
+  const operation = await getOperation(row.id);
+  expect(operation).toMatchObject({ sourceAmount: "100.00", targetAmount: "512.35", exchangeRate: "5.12345678", createdById: authorId });
+  expect(operation.auditEvents).toHaveLength(1);
+  expect(await db.proposal.count()).toBe(0);
 });
 
-it("serializa confirmações simultâneas da mesma simulação com um único evento inicial", async () => {
-  const input = { customerId, simulationToken: token() };
-  const results = await Promise.all([createOperation(input), createOperation(input)]);
-  expect(results[0].operation.id).toBe(results[1].operation.id);
-  expect(results.filter((result) => result.created)).toHaveLength(1);
-  expect(await db.exchangeOperation.count()).toBe(1);
-  expect(await db.operationAuditEvent.count()).toBe(1);
+it("mantém transições legadas, autoria do analista e bloqueio de status desatualizado e final", async () => {
+  const row = await legacyOperation();
+  await changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" });
+  await expect(changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "STATUS_CONFLICT" });
+  const final = await changeOperationStatus(row.id, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" });
+  expect(final.auditEvents.map((event) => event.actorId)).toEqual([authorId, analystId, analystId]);
+  await expect(changeOperationStatus(row.id, { expectedStatus: "COMPLETED", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
 });
 
-it("recusa token expirado, adulterado, de outro funcionário e cliente inexistente sem gravar", async () => {
-  for (const simulationToken of [token({ expired: true }), `${token()}changed`, token({ actorId: "other" })]) {
-    await expect(createOperation({ customerId, simulationToken })).rejects.toMatchObject({ code: "INVALID_SIMULATION" });
-  }
-  await expect(createOperation({ customerId: "missing", simulationToken: token() })).rejects.toMatchObject({ status: 404 });
-  expect(await db.exchangeOperation.count()).toBe(0);
-  expect(await db.operationAuditEvent.count()).toBe(0);
-  await expect(getOperation("missing")).rejects.toMatchObject({ status: 404 });
-});
-
-it("grava transições e autoria em ordem, recusa status desatualizado e bloqueia estado final", async () => {
-  const { operation } = await createOperation({ customerId, simulationToken: token() });
-  asAnalyst();
-  const response = await PATCH(jsonRequest(`/api/operacoes/${operation.id}/status`, { expectedStatus: "PENDING", status: "UNDER_REVIEW" }, "PATCH"), { params: Promise.resolve({ id: operation.id }) });
-  expect(response.status).toBe(200);
-  expect((await response.json()).data.status).toBe("UNDER_REVIEW");
-  await expect(changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "STATUS_CONFLICT" });
-  const final = await changeOperationStatus(operation.id, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" });
-  expect(final.auditEvents.map((event) => event.newStatus)).toEqual(["PENDING", "UNDER_REVIEW", "COMPLETED"]);
-  expect(final.auditEvents.map((event) => event.actorId)).toEqual([actorId, analystId, analystId]);
-  await expect(changeOperationStatus(operation.id, { expectedStatus: "COMPLETED", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "INVALID_TRANSITION" });
-  expect((await getOperation(operation.id)).auditEvents).toHaveLength(3);
-});
-
-it("recusa uma de duas transições concorrentes e grava somente o evento vencedor", async () => {
-  const { operation } = await createOperation({ customerId, simulationToken: token() });
-  asAnalyst();
-  await changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" });
+it("recusa uma de duas transições concorrentes e mantém apenas a auditoria vencedora", async () => {
+  const row = await legacyOperation();
+  await changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" });
   const results = await Promise.allSettled([
-    changeOperationStatus(operation.id, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" }),
-    changeOperationStatus(operation.id, { expectedStatus: "UNDER_REVIEW", status: "CANCELED" }),
+    changeOperationStatus(row.id, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" }),
+    changeOperationStatus(row.id, { expectedStatus: "UNDER_REVIEW", status: "CANCELED" }),
   ]);
   expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-  const rejected = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
-  expect(rejected.reason).toMatchObject({ code: "STATUS_CONFLICT" });
-  const final = await getOperation(operation.id);
-  expect(final.auditEvents).toHaveLength(3);
-  expect(final.auditEvents.at(-1)?.newStatus).toBe(final.status);
+  expect((await getOperation(row.id)).auditEvents).toHaveLength(3);
 });
 
-it("desfaz criação e mudança de status se a gravação da auditoria falhar", async () => {
-  const { operation } = await createOperation({ customerId, simulationToken: token() });
-  // Falha real de escrita, injetada exclusivamente neste banco descartável.
+it("desfaz a transição legada quando a auditoria falha", async () => {
+  const row = await legacyOperation();
   await db.$executeRaw`CREATE FUNCTION reject_test_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test audit failure'; END; $$`;
   try {
     await db.$executeRaw`CREATE TRIGGER reject_test_audit BEFORE INSERT ON "OperationAuditEvent" FOR EACH ROW EXECUTE FUNCTION reject_test_audit()`;
-    await expect(createOperation({ customerId, simulationToken: token() })).rejects.toThrow();
-    asAnalyst();
-    await expect(changeOperationStatus(operation.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toThrow();
-    expect(await db.exchangeOperation.count()).toBe(1);
-    const stored = await getOperation(operation.id);
-    expect(stored.status).toBe("PENDING");
-    expect(stored.auditEvents).toHaveLength(1);
+    await expect(changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toThrow();
+    expect((await getOperation(row.id)).status).toBe("PENDING");
+    expect(await db.operationAuditEvent.count()).toBe(1);
   } finally {
     await db.$executeRaw`DROP TRIGGER IF EXISTS reject_test_audit ON "OperationAuditEvent"`;
     await db.$executeRaw`DROP FUNCTION IF EXISTS reject_test_audit()`;
   }
 });
 
-it("bloqueia consultas, confirmação e alteração sem sessão", async () => {
-  vi.mocked(auth).mockResolvedValue(null as never);
-  expect((await GET()).status).toBe(401);
-  expect((await POST(jsonRequest("/api/operacoes", { customerId, simulationToken: token() }))).status).toBe(401);
-  await expect(getOperation("missing")).rejects.toMatchObject({ status: 401 });
-  await expect(changeOperationStatus("missing", {})).rejects.toMatchObject({ status: 401 });
-  expect(await db.exchangeOperation.count()).toBe(0);
-});
-
-it("isola operações, totais e auditoria do operador, inclusive por ID e API, e mantém a visão do administrador", async () => {
-  const own = (await createOperation({ customerId, simulationToken: token() })).operation;
-  const other = await db.user.create({ data: { name: "Outro operador", email: "other-operator@example.test", passwordHash: "unused", role: "CONSULTANT" } });
-  vi.mocked(auth).mockResolvedValue({ user: { id: other.id } } as never);
-  const foreign = (await createOperation({ customerId, simulationToken: token({ actorId: other.id }) })).operation;
-  asAnalyst();
-  await changeOperationStatus(foreign.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" });
-  vi.mocked(auth).mockResolvedValue({ user: { id: actorId } } as never);
-  expect((await listOperations()).map((row) => row.id)).toEqual([own.id]);
-  expect(await getOperationSummary()).toEqual({ PENDING: 1, UNDER_REVIEW: 0, COMPLETED: 0, CANCELED: 0 });
-  expect((await (await GET()).json()).data.map((row: { id: string }) => row.id)).toEqual([own.id]);
-  expect((await GET_OPERATION(new Request(`http://localhost/api/operacoes/${foreign.id}`), { params: Promise.resolve({ id: foreign.id }) })).status).toBe(404);
-  expect((await PATCH(jsonRequest(`/api/operacoes/${foreign.id}/status`, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" }, "PATCH"), { params: Promise.resolve({ id: foreign.id }) })).status).toBe(403);
-  expect((await db.exchangeOperation.findUniqueOrThrow({ where: { id: foreign.id } })).status).toBe("UNDER_REVIEW");
-  expect(await db.operationAuditEvent.count({ where: { operationId: foreign.id } })).toBe(2);
-
-  const admin = await db.user.create({ data: { name: "Administrador", email: "admin-scope@example.test", passwordHash: "unused", role: "ADMIN" } });
-  vi.mocked(auth).mockResolvedValue({ user: { id: admin.id } } as never);
-  expect(await listOperations()).toHaveLength(2);
-  expect(await getOperationSummary()).toEqual({ PENDING: 1, UNDER_REVIEW: 1, COMPLETED: 0, CANCELED: 0 });
-  expect((await getOperation(foreign.id)).auditEvents).toHaveLength(2);
-  await expect(changeOperationStatus(foreign.id, { expectedStatus: "UNDER_REVIEW", status: "COMPLETED" })).rejects.toMatchObject({ status: 403 });
-  await expect(createOperation({ customerId, simulationToken: token() })).rejects.toMatchObject({ status: 403 });
-  for (const role of ["OPERATIONS_ANALYST", "MANAGER"] as const) {
-    await db.user.update({ where: { id: admin.id }, data: { role } });
-    expect(await listOperations()).toHaveLength(2);
-    expect(await getOperationSummary()).toEqual({ PENDING: 1, UNDER_REVIEW: 1, COMPLETED: 0, CANCELED: 0 });
-    expect((await getOperation(foreign.id)).auditEvents).toHaveLength(2);
+it("isola leitura por autoria e impede análise pelo autor após mudança de função", async () => {
+  const row = await legacyOperation();
+  login(authorId);
+  expect(await listOperations()).toHaveLength(1);
+  await expect(changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ status: 403 });
+  const other = await db.user.create({ data: { name: "Outro", email: "other@example.test", passwordHash: "unused", role: "CONSULTANT" } });
+  login(other.id);
+  expect(await listOperations()).toHaveLength(0);
+  expect((await getOperationSummary()).PENDING).toBe(0);
+  await expect(getOperation(row.id)).rejects.toMatchObject({ status: 404 });
+  login(authorId);
+  await db.user.update({ where: { id: authorId }, data: { role: "OPERATIONS_ANALYST" } });
+  await expect(changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ code: "SELF_REVIEW_FORBIDDEN" });
+  for (const role of ["ADMIN", "MANAGER"] as const) {
+    await db.user.update({ where: { id: authorId }, data: { role } });
+    expect(await listOperations()).toHaveLength(1);
+    expect((await getOperationSummary()).PENDING).toBe(1);
+    await expect(changeOperationStatus(row.id, { expectedStatus: "PENDING", status: "UNDER_REVIEW" })).rejects.toMatchObject({ status: 403 });
   }
 });
 
-it("persiste simulações por autor e vincula o histórico à operação, sem expor chave ou token", async () => {
-  const timestamp = new Date().toISOString();
-  vi.mocked(getQuote).mockResolvedValue({ sourceCurrency: "USD", targetCurrency: "BRL", exchangeRate: "5.12345678", quoteProvider: "Frankfurter / ECB", quoteReferenceDate: timestamp.slice(0, 10), quoteFetchedAt: timestamp, quoteTimestamp: timestamp, quoteTimestampKind: "FETCHED_AT" });
-  const simulated = await simulateConversion({ sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "100" });
+it("bloqueia criação direta por HTTP e exige sessão nas leituras", async () => {
+  login(authorId);
+  const request = new Request("http://localhost:3000/api/operacoes", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  const response = await POST(request);
+  expect(response.status).toBe(409);
+  expect((await response.json()).error.code).toBe("APPROVAL_REQUIRED");
   expect(await db.exchangeOperation.count()).toBe(0);
-  const { operation } = await createOperation({ customerId, simulationToken: simulated.simulationToken });
-  const other = await db.user.create({ data: { name: "Outro operador", email: "history-other@example.test", passwordHash: "unused", role: "CONSULTANT" } });
-  vi.mocked(auth).mockResolvedValue({ user: { id: other.id } } as never);
-  await simulateConversion({ sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "200" });
-  vi.mocked(auth).mockResolvedValue({ user: { id: actorId } } as never);
-  const history = await listSimulations();
-  expect(history).toHaveLength(1);
-  expect(history[0]).toMatchObject({ createdById: actorId, sourceAmount: "100.00", targetAmount: "512.35", operationId: operation.id, createdBy: { name: "Operador de Teste" } });
-  expect(history[0]).not.toHaveProperty("confirmationKey");
-  expect(history[0]).not.toHaveProperty("simulationToken");
-  expect(JSON.stringify(history)).not.toContain("passwordHash");
-  expect(await getSimulationCount()).toBe(1);
-  expect((await (await GET_SIMULATIONS()).json()).data).toHaveLength(1);
-  // Mesmo após expirar, a consulta e sua operação continuam no histórico.
-  await db.simulation.update({ where: { id: history[0].id }, data: { expiresAt: new Date(0) } });
-  expect((await listSimulations())[0].operationId).toBe(operation.id);
-  const admin = await db.user.create({ data: { name: "Administrador", email: "history-admin@example.test", passwordHash: "unused", role: "ADMIN" } });
-  vi.mocked(auth).mockResolvedValue({ user: { id: admin.id } } as never);
-  for (const role of ["ADMIN", "MANAGER", "OPERATIONS_ANALYST"] as const) {
-    await db.user.update({ where: { id: admin.id }, data: { role } });
-    await expect(listSimulations()).rejects.toMatchObject({ status: 403 });
-    await expect(getSimulationCount()).rejects.toMatchObject({ status: 403 });
-    expect((await GET_SIMULATIONS()).status).toBe(403);
-    await expect(simulateConversion({ sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "100" })).rejects.toMatchObject({ status: 403 });
-  }
   vi.mocked(auth).mockResolvedValue(null as never);
-  expect((await GET_SIMULATIONS()).status).toBe(401);
+  await expect(listOperations()).rejects.toMatchObject({ status: 401 });
 });

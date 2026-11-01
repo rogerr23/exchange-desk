@@ -1,5 +1,7 @@
+import { requirePermission } from "@/server/auth/authorize";
+import { AppError } from "@/server/errors";
 import { json, readJson, respond } from "@/server/http";
-import { createOperation, listOperations } from "@/server/services/operations";
+import { listOperations } from "@/server/services/operations";
 
 export const runtime = "nodejs";
 
@@ -9,7 +11,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   return respond(async () => {
-    const result = await createOperation(await readJson(request));
-    return json({ data: result.operation }, result.created ? 201 : 200);
+    await requirePermission("proposals:create");
+    await readJson(request);
+    throw new AppError(409, "APPROVAL_REQUIRED", "Crie uma proposta e registre o aceite simulado. A operação será criada somente após aprovação da solicitação.");
   });
 }

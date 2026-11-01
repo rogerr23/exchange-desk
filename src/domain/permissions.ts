@@ -20,15 +20,18 @@ export type Permission =
   | "quotes:simulate"
   | "simulations:read"
   | "operations:read"
-  | "operations:create"
+  | "proposals:create"
+  | "proposals:read"
+  | "proposals:accept"
+  | "requests:read"
   | "operations:change-status"
   | "audit:read";
 
 const permissionsByRole: Record<Role, readonly Permission[]> = {
-  CONSULTANT: ["customers:read", "customers:create", "quotes:simulate", "simulations:read", "operations:read", "operations:create", "audit:read"],
-  OPERATIONS_ANALYST: ["customers:read", "operations:read", "operations:change-status", "audit:read"],
-  MANAGER: ["customers:read", "operations:read", "audit:read"],
-  ADMIN: ["employees:read", "employees:create", "customers:read", "operations:read", "audit:read"],
+  CONSULTANT: ["customers:read", "customers:create", "quotes:simulate", "simulations:read", "operations:read", "proposals:create", "proposals:read", "proposals:accept", "requests:read", "audit:read"],
+  OPERATIONS_ANALYST: ["customers:read", "operations:read", "operations:change-status", "proposals:read", "requests:read", "audit:read"],
+  MANAGER: ["customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
+  ADMIN: ["employees:read", "employees:create", "customers:read", "operations:read", "proposals:read", "requests:read", "audit:read"],
 };
 
 // O perfil deve vir da sessão verificada no servidor, nunca do corpo da requisição.

@@ -23,6 +23,9 @@ const initialAdmin = { name: "Admin de Teste", email: "admin@example.test", pass
 beforeEach(async () => {
   vi.mocked(auth).mockReset();
   // Exclusivo do banco de testes explicitamente configurado acima.
+  await db.proposalAuditEvent.deleteMany();
+  await db.exchangeRequest.deleteMany();
+  await db.proposal.deleteMany();
   await db.operationAuditEvent.deleteMany();
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();

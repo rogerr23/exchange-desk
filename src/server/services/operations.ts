@@ -2,11 +2,10 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { operationScope } from "@/domain/permissions";
 import { canChangeStatus } from "@/domain/operation-status";
-import { createOperationSchema, changeOperationStatusSchema, operationIdSchema } from "@/schemas/operation";
+import { changeOperationStatusSchema, operationIdSchema } from "@/schemas/operation";
 import { requirePermission } from "@/server/auth/authorize";
 import { getDb } from "@/server/db/client";
 import { AppError } from "@/server/errors";
-import { simulationConfirmationKey, verifySimulation } from "@/server/quotes/simulation-token";
 
 const operationSelect = {
   id: true, customerId: true, createdById: true,
@@ -41,57 +40,6 @@ function serializeOperation<T extends OperationRow>(operation: T) {
 
 function statusConflict() {
   return new AppError(409, "STATUS_CONFLICT", "Esta operação foi alterada. Atualize os dados antes de tentar novamente.");
-}
-
-export async function createOperation(input: unknown) {
-  const actor = await requirePermission("operations:create");
-  const data = createOperationSchema.parse(input);
-  const simulation = verifySimulation(data.simulationToken, actor.id);
-  // O conteúdo validado evita que representações alternativas da assinatura gerem duplicações.
-  const confirmationKey = simulationConfirmationKey(simulation);
-  const db = getDb();
-
-  async function existingConfirmation() {
-    const existing = await db.exchangeOperation.findUnique({
-      where: { confirmationKey }, select: detailSelect,
-    });
-    if (!existing) return null;
-    if (existing.customerId !== data.customerId) {
-      throw new AppError(409, "SIMULATION_ALREADY_CONFIRMED", "Esta simulação já foi confirmada para outro cliente. Faça uma nova simulação.");
-    }
-    return { operation: serializeOperation(existing), created: false };
-  }
-
-  const existing = await existingConfirmation();
-  if (existing) return existing;
-  try {
-    const operation = await db.$transaction(async (tx) => {
-      if (!await tx.customer.findUnique({ where: { id: data.customerId }, select: { id: true } })) {
-        throw new AppError(404, "NOT_FOUND", "Cliente não encontrado.");
-      }
-      return tx.exchangeOperation.create({
-        data: {
-          confirmationKey, customerId: data.customerId, createdById: actor.id,
-          sourceCurrency: simulation.sourceCurrency, targetCurrency: simulation.targetCurrency,
-          sourceAmount: simulation.sourceAmount, targetAmount: simulation.targetAmount,
-          exchangeRate: simulation.exchangeRate, quoteProvider: simulation.quoteProvider,
-          quoteReferenceDate: new Date(`${simulation.quoteReferenceDate}T00:00:00.000Z`),
-          quoteTimestamp: new Date(simulation.quoteTimestamp), quoteTimestampKind: simulation.quoteTimestampKind,
-          quoteFetchedAt: new Date(simulation.quoteFetchedAt), status: "PENDING",
-          auditEvents: { create: { actorId: actor.id, action: "CREATED", newStatus: "PENDING" } },
-        },
-        select: detailSelect,
-      });
-    });
-    return { operation: serializeOperation(operation), created: true };
-  } catch (error) {
-    // Duas confirmações simultâneas disputam a restrição única; a perdedora lê a vencedora.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const repeated = await existingConfirmation();
-      if (repeated) return repeated;
-    }
-    throw error;
-  }
 }
 
 export async function listOperations(limit?: number) {

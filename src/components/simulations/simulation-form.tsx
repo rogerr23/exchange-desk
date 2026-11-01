@@ -122,19 +122,19 @@ export function SimulationForm({
     if (busy.current || !simulation || expired) return;
     resetError();
     if (!customer) {
-      setError("Selecione um cliente antes de confirmar.");
+      setError("Selecione um cliente antes de criar a proposta.");
       return;
     }
     busy.current = true;
     setPending("confirm");
     setConfirmationAttempted(true);
     try {
-      const operation = await apiRequest<{ id: string }>(
-        "/api/operacoes",
+      const proposal = await apiRequest<{ id: string }>(
+        "/api/propostas",
         "POST",
         { customerId, simulationToken: simulation.simulationToken },
       );
-      router.push(`/operacoes/${operation.id}?confirmada=1`);
+      router.push(`/propostas/${proposal.id}?criada=1`);
       router.refresh();
       // Manter o envio bloqueado até a navegação concluir.
     } catch (error) {
@@ -143,7 +143,7 @@ export function SimulationForm({
         setServerExpired(true);
       if (!(error instanceof ApiError))
         setError(
-          "Não recebemos a confirmação do servidor. Tente confirmar novamente com esta mesma simulação ou consulte as operações antes de iniciar outra.",
+          "Não recebemos a confirmação do servidor. Tente salvar novamente com esta mesma simulação ou consulte as propostas antes de iniciar outra.",
         );
       busy.current = false;
       setPending(null);
@@ -265,7 +265,7 @@ export function SimulationForm({
             <Icon name="exchange" />
           </div>
           <h2 className="text-sm font-semibold">
-            Uma referência para sua operação.
+            Uma referência para sua proposta.
           </h2>
           <p className="mt-3 text-sm leading-6 text-muted">
             Consulte a conversão entre real, dólar e euro. O resultado mostra a
@@ -273,8 +273,8 @@ export function SimulationForm({
           </p>
           <p className="mt-4 border-t border-line pt-4 text-xs leading-6 text-muted">
             Depois de simular, você poderá selecionar o cliente e revisar os
-            dados antes de confirmar. Suas simulações ficam salvas no histórico,
-            mesmo quando não viram uma operação.
+            dados antes de criar uma proposta. Suas simulações ficam salvas no histórico,
+            mesmo quando não viram uma proposta.
           </p>
         </aside>
       </div>
@@ -289,7 +289,7 @@ export function SimulationForm({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-6 py-5 sm:px-8">
         <div>
           <p className="eyebrow">Revise antes de registrar</p>
-          <h2 className="mt-2 text-lg font-semibold">Confirmar operação</h2>
+          <h2 className="mt-2 text-lg font-semibold">Criar proposta</h2>
         </div>
         <span
           className={`rounded-full px-3 py-2 text-xs font-semibold ${expired ? "bg-negative/10 text-negative" : "bg-brand-soft text-brand-ink"}`}
@@ -304,7 +304,7 @@ export function SimulationForm({
         {expired && (
           <Notice>
             Esta simulação expirou. Faça uma nova simulação e confira o
-            resultado antes de confirmar.
+            resultado antes de criar a proposta.
           </Notice>
         )}
         <div className="grid gap-6 rounded-xl bg-canvas p-5 sm:grid-cols-[1fr_auto_1fr]">
@@ -331,7 +331,7 @@ export function SimulationForm({
         </div>
         <div>
           <label htmlFor="operation-customer" className="field-label">
-            Cliente da operação
+            Cliente da proposta
           </label>
           <select
             id="operation-customer"
@@ -358,7 +358,7 @@ export function SimulationForm({
           )}
           {customers.length === 0 && (
             <p className="mt-3 text-sm text-muted">
-              Cadastre um cliente para confirmar.{" "}
+              Cadastre um cliente para criar a proposta.{" "}
               <Link
                 href="/clientes/novo"
                 className="font-semibold text-brand-ink underline"
@@ -398,11 +398,11 @@ export function SimulationForm({
           <h3 className="font-semibold text-ink">Como ler este resultado</h3>
           <p className="mt-2">O valor de origem multiplicado pela taxa resulta no valor de destino, arredondado para duas casas decimais.</p>
           <p className="mt-2">A taxa é uma referência diária, sem atualização em tempo real. A simulação aplica somente essa taxa; tarifas, spread e impostos não são calculados.</p>
-          <p className="mt-2">O prazo de 15 minutos limita a confirmação desta simulação. Ao expirar, consulte novamente e revise os novos valores.</p>
+          <p className="mt-2">O prazo de 15 minutos, contado desde a simulação, limita o aceite da proposta. Salvar a proposta não renova esse prazo. Ao expirar, consulte novamente e revise os novos valores.</p>
         </div>
         <p className="border-t border-line pt-5 text-xs leading-6 text-muted">
-          A confirmação registra a operação como Pendente, preservando a taxa e
-          os valores acima. Nenhum pagamento ou liquidação é realizado pelo
+          Salvar cria uma proposta, preservando a taxa, os valores e o prazo original.
+          O aceite simulado será registrado separadamente nos detalhes. Nenhum pagamento ou liquidação é realizado pelo
           sistema.
         </p>
         {confirmationAttempted && (
@@ -410,9 +410,9 @@ export function SimulationForm({
             Para conferir um envio anterior,{" "}
             <Link
               className="font-semibold text-brand-ink underline"
-              href="/operacoes"
+              href="/propostas"
             >
-              consulte as operações
+              consulte as propostas
             </Link>{" "}
             antes de iniciar uma nova simulação.
           </p>
@@ -431,7 +431,7 @@ export function SimulationForm({
           className="button-primary justify-center"
           disabled={!!pending || expired || !customer}
         >
-          {pending === "confirm" ? "Confirmando…" : "Confirmar operação"}
+          {pending === "confirm" ? "Salvando proposta…" : "Criar proposta"}
           <Icon name="check" width="17" height="17" />
         </button>
       </div>

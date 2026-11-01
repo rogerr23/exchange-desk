@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { canChangeStatus, OPERATION_STATUSES } from "@/domain/operation-status";
-import { createOperationSchema } from "@/schemas/operation";
+import { createProposalSchema } from "@/schemas/proposal";
 
 it("permite apenas as três transições definidas e bloqueia reabertura, saltos e repetições", () => {
   const allowed = new Set(["PENDING:UNDER_REVIEW", "UNDER_REVIEW:COMPLETED", "UNDER_REVIEW:CANCELED"]);
@@ -9,10 +9,10 @@ it("permite apenas as três transições definidas e bloqueia reabertura, saltos
   }
 });
 
-it("confirma apenas cliente e token, recusando valores ou autoria enviados pelo navegador", () => {
+it("cria proposta apenas com cliente e token, recusando valores ou autoria enviados pelo navegador", () => {
   const input = { customerId: "customer", simulationToken: "signed-token" };
-  expect(createOperationSchema.safeParse(input).success).toBe(true);
+  expect(createProposalSchema.safeParse(input).success).toBe(true);
   for (const extra of [{ sourceAmount: "1" }, { exchangeRate: "1" }, { createdById: "someone" }]) {
-    expect(createOperationSchema.safeParse({ ...input, ...extra }).success).toBe(false);
+    expect(createProposalSchema.safeParse({ ...input, ...extra }).success).toBe(false);
   }
 });

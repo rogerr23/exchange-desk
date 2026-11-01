@@ -25,8 +25,8 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
     ADMIN: "Gerencie os acessos e consulte operações para suporte à equipe.",
   };
   const guidance = {
-    CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e confirme antes do prazo de 15 minutos. A operação será registrada como Pendente.", "Acompanhe a análise pelo histórico da operação."],
-    OPERATIONS_ANALYST: ["Consulte as operações Pendentes da equipe.", "Confira o cliente, os valores e a referência registrada.", "Acompanhe a análise nos detalhes da operação. Toda alteração fica na auditoria."],
+    CONSULTANT: ["Cadastre ou selecione um cliente para o atendimento.", "Simule a conversão e confira valores, fonte e referência.", "Revise e salve uma proposta. O prazo de aceite é o restante dos 15 minutos da simulação.", "Registre o aceite simulado para gerar uma solicitação e acompanhe a análise."],
+    OPERATIONS_ANALYST: ["Consulte as solicitações da equipe e confira as propostas vinculadas.", "Confira o cliente, os valores e a referência registrada.", "Acompanhe a análise nos detalhes da operação. Toda alteração fica na auditoria."],
     MANAGER: ["Acompanhe os indicadores de toda a equipe.", "Consulte os detalhes e o histórico das operações para supervisão."],
     ADMIN: ["Cadastre funcionários com o perfil correspondente à sua função.", "Consulte os detalhes e a auditoria das operações para prestar suporte à equipe."],
   };
@@ -59,6 +59,8 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
       </dl>
     </section>
     <div className="mt-7 flex flex-wrap gap-3">
+      <Link href="/propostas" className="button-secondary">Ver propostas</Link>
+      <Link href="/solicitacoes" className="button-secondary">Acompanhar solicitações</Link>
       <Link href="/operacoes" className="button-secondary">{isConsultant ? "Minhas operações" : "Ver operações"}</Link>
       {can(actor.role, "simulations:read") && <Link href="/simulacoes/historico" className="button-secondary">Minhas simulações</Link>}
       {can(actor.role, "customers:create") && <Link href="/clientes/novo" className="button-secondary">Cadastrar cliente</Link>}

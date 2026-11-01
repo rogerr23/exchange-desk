@@ -1,11 +1,12 @@
 import "dotenv/config";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { getDb } from "@/server/db/client";
 import { hashPassword } from "@/server/auth/password";
+import { signSimulation, SIMULATION_TTL_MS } from "@/server/quotes/simulation-token";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl || !new URL(databaseUrl).pathname.endsWith("_test")) {
@@ -16,6 +17,7 @@ if (!databaseUrl || !new URL(databaseUrl).pathname.endsWith("_test")) {
 process.env.DATABASE_URL = databaseUrl;
 const db = getDb();
 const password = randomBytes(24).toString("hex");
+const serverSecret = randomBytes(48).toString("base64url");
 let server: ChildProcess | undefined;
 let base: string;
 let serverOutput = "";
@@ -68,6 +70,9 @@ async function signIn(email: string, suppliedPassword = password) {
 }
 
 beforeAll(async () => {
+  await db.proposalAuditEvent.deleteMany();
+  await db.exchangeRequest.deleteMany();
+  await db.proposal.deleteMany();
   await db.operationAuditEvent.deleteMany();
   await db.exchangeOperation.deleteMany();
   await db.customer.deleteMany();
@@ -108,7 +113,7 @@ beforeAll(async () => {
         ...process.env,
         DATABASE_URL: databaseUrl,
         AUTH_URL: base,
-        AUTH_SECRET: randomBytes(48).toString("base64url"),
+        AUTH_SECRET: serverSecret,
         NODE_ENV: "production",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -290,6 +295,39 @@ it("valida login, cookies, perfis, cadastros e logout pelo HTTP real", async () 
 
   // Uma sessão existente perde imediatamente as permissões do perfil anterior.
   const consultant = await db.user.findUniqueOrThrow({ where: { email: "http-operator@example.test" } });
+  const issued = Date.now();
+  const previousSecret = process.env.AUTH_SECRET;
+  let simulationToken: string;
+  try {
+    process.env.AUTH_SECRET = serverSecret;
+    simulationToken = signSimulation({ version: 1, simulationId: randomUUID(), actorId: consultant.id,
+      sourceCurrency: "USD", targetCurrency: "BRL", sourceAmount: "100.00", targetAmount: "512.35", exchangeRate: "5.12345678",
+      quoteProvider: "Frankfurter / ECB", quoteReferenceDate: "2026-10-30", quoteTimestamp: new Date(issued).toISOString(),
+      quoteTimestampKind: "FETCHED_AT", quoteFetchedAt: new Date(issued).toISOString(), issuedAt: new Date(issued).toISOString(), expiresAt: new Date(issued + SIMULATION_TTL_MS).toISOString(),
+    });
+  } finally {
+    if (previousSecret === undefined) delete process.env.AUTH_SECRET;
+    else process.env.AUTH_SECRET = previousSecret;
+  }
+  const proposalResponse = await request("/api/propostas", operator, sendJson({ customerId: data.id, simulationToken }));
+  expect(proposalResponse.status).toBe(201);
+  const proposal = (await proposalResponse.json()).data;
+  const proposalPage = await request(`/propostas/${proposal.id}`, operator);
+  expect(await proposalPage.text()).toContain("Registrar aceite simulado");
+  const analyst = await signIn("operations_analyst@example.test");
+  expect((await request(`/api/propostas/${proposal.id}`, analyst)).status).toBe(404);
+  expect((await request(`/api/propostas/${proposal.id}`, admin)).status).toBe(200);
+  expect((await request("/api/operacoes", operator, sendJson({ customerId: data.id, simulationToken }))).status).toBe(409);
+  const accepted = await request(`/api/propostas/${proposal.id}/aceite`, operator, sendJson({ confirmSimulatedAcceptance: true }));
+  expect(accepted.status).toBe(201);
+  const acceptedProposal = (await accepted.json()).data;
+  expect(acceptedProposal.status).toBe("ACCEPTED");
+  expect((await request(`/api/solicitacoes/${acceptedProposal.request.id}`, analyst)).status).toBe(200);
+  expect((await request(`/api/propostas/${proposal.id}`, analyst)).status).toBe(200);
+  expect((await request(`/api/propostas/${proposal.id}/aceite`, admin, sendJson({ confirmSimulatedAcceptance: true }))).status).toBe(403);
+  const requestPage = await request(`/solicitacoes/${acceptedProposal.request.id}`, operator);
+  expect(await requestPage.text()).toContain("Aguardando análise");
+  expect(await db.exchangeOperation.count()).toBe(0);
   await db.user.update({ where: { id: consultant.id }, data: { role: "MANAGER" } });
   expect((await request("/api/simulacoes", operator)).status).toBe(403);
   expect((await request("/api/clientes", operator, sendJson(customer))).status).toBe(403);
